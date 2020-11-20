@@ -1,0 +1,134 @@
+﻿Who broke the window?
+
+
+says_true('Андрей', Breaker) :- 
+    Breaker = 'Витя'
+    ;   
+    Breaker = 'Коля'.
+
+
+says_true('Витя', Breaker) :-
+    Breaker \= 'Витя', 
+    Breaker \= 'Юра'.
+
+
+says_true('Дима', Breaker) :-
+    says_true('Андрей', Breaker), 
+    not(says_true('Витя', Breaker))
+    ;   
+    not(says_true('Андрей', Breaker)), 
+    says_true('Витя', Breaker).
+
+
+says_true('Юра', Breaker) :-
+    not(says_true('Дима', Breaker)).
+
+
+count_trues([], _, 0).
+
+
+count_trues([Name | Tails], Breaker, N) :-
+    says_true(Name, Breaker),
+    count_trues(Tails, Breaker, N1),
+    N is 1 + N1.
+
+
+count_trues([_ | Tails], Breaker, N) :-
+    count_trues(Tails, Breaker, N).
+
+
+
+
+
+
+?- count_trues(['Андрей', 'Витя', 'Дима', 'Коля', 'Юра'], Breaker, N), N > 2.
+________________
+
+
+Волк, коза и капуста
+% state(FarmerPosition, WolfPosition, GoatPosition, CabbagePosition)
+% Each position can be either right or left
+ 
+riverbank(right).
+riverbank(left).
+
+
+canMove(
+  state(FarmerPosition, WolfPosition, GoatPosition, CabbagePosition),
+  state(FarmerPosition1, WolfPosition1, GoatPosition1, CabbagePosition1)) :-
+    riverbank(FarmerPosition1), 
+    riverbank(WolfPosition1), 
+    riverbank(GoatPosition1), 
+    riverbank(CabbagePosition1),
+    FarmerPosition1 \= FarmerPosition,
+    atMostOneCreatureWasMoved([WolfPosition, GoatPosition, CabbagePosition], [WolfPosition1, GoatPosition1, CabbagePosition1], FarmerPosition1),
+    sidesAreOk(FarmerPosition1, WolfPosition1, GoatPosition1, CabbagePosition1).
+
+
+atMostOneCreatureWasMoved([A, B, C], [A1, B1, C1], NewFarmerPosition) :- 
+    A \= A1, B = B1, C = C1, NewFarmerPosition = A1
+    ;   
+    A = A1, B \= B1, C = C1, NewFarmerPosition = B1
+    ;   
+    A = A1, B = B1, C \= C1, NewFarmerPosition = C1
+    ;
+    A = A1, B = B1, C = C1.
+
+
+sidesAreOk(FarmerPosition, WolfPosition, GoatPosition, CabbagePosition) :-
+    WolfPosition \= GoatPosition, GoatPosition \= CabbagePosition
+    ;   
+    FarmerPosition = GoatPosition.
+
+
+solve(State, Solution) :-
+    depthfirst([], State, Solution).
+    
+depthfirst(_, state(right, right, right, right), [state(right, right, right, right)]).
+
+
+depthfirst(Path, State, [State | Solution1]) :-
+    canMove(State, State1),
+    not(member(State1, Path)),
+    depthfirst([State | Path], State1, Solution1).
+
+
+
+
+
+
+?- solve(state(left, left, left, left), Solution).
+
+
+
+
+Solution = [state(left, left, left, left), state(right, left, right, left), state(left, left, right, left), state(right, right, right, left), state(left, right, left, left), state(right, right, left, right), state(left, right, left, right)|_1328]
+
+
+________________
+
+
+Опустошить стек
+
+
+can(push(stack), []).
+can(pop(stack), [not(Empty(stack))]).
+
+
+adds(push(stack)), [Inserted(stack, string('00001'), begin(stack))]).
+adds(pop(stack), [Deleted(stack, _, begin(stack))]).
+
+
+Inserted(Collection, NewElement, begin(Collection)) :-
+    Changed(Collection, ContentBefore, [NewElement | ContentBefore]).
+
+
+Deleted(Collection, Element, begin(stack)) :-
+    Changed(Collection, [Element | ContentAfter], ContentAfter).
+
+
+Empty([]).
+
+
+plan(State, Goals, [], State) :-
+    satis
