@@ -440,3 +440,10 @@ $RECYCLE.BIN/
 !.vscode/tasks.json
 !.vscode/launch.json
 !.vscode/extensions.json
+
+# Grammar Engine sources and binaries
+GrammarEngine/
+GrammarEngine-master.zip
+
+# vscode settings
+.vscode/
