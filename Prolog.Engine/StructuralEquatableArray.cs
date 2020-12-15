@@ -9,6 +9,8 @@ namespace Prolog.Engine
     {
         public StructuralEquatableArray(params T[] values) => _values = values;
 
+        public StructuralEquatableArray(IEnumerable<T> values) => _values = values.ToArray();
+
         public T this[int index] => _values[index];
 
         public int Count => _values.Count;
@@ -25,14 +27,17 @@ namespace Prolog.Engine
         public override int GetHashCode() => _values.GetHashCode();
 
         public override string ToString() =>
-            "[" + string.Join(", ", _values.Take(3)) + (Count > 3 ? "..." : string.Empty) + "]";
+            "[" + string.Join(", ", _values.Take(3)) + (_values.Count > 3 ? "..." : string.Empty) + "]";
 
         public static bool operator ==(StructuralEquatableArray<T>? left, StructuralEquatableArray<T>? right) =>
-            ReferenceEquals(left, right) || 
-            !ReferenceEquals(left, null) && left.Equals(right);
+            ReferenceEquals(left, right) ||
+            (!ReferenceEquals(left, null) && left.Equals(right));
 
         public static bool operator !=(StructuralEquatableArray<T>? left, StructuralEquatableArray<T>? right) =>
             !(left == right);
+
+        public static readonly StructuralEquatableArray<ComplexTerm> Empty = 
+            new StructuralEquatableArray<ComplexTerm>(Array.Empty<ComplexTerm>());
 
         private readonly IReadOnlyList<T> _values;
     }

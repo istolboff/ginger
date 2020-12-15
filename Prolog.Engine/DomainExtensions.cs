@@ -4,14 +4,14 @@ namespace Prolog.Engine
 {
     public static class DomainExtensions
     {
-        public static Unification.Result InstantiatedTo(this Variable @this, Term term) => 
-            new Unification.Result(
-                Succeeded: true, 
+        public static UnificationResult InstantiatedTo(this Variable @this, Term term) =>
+            new UnificationResult(
+                Succeeded: true,
                 Instantiations: new StructuralEquatableDictionary<Variable, Term> { [@this] = term });
 
-        public static Unification.Result And(this Unification.Result @this, Unification.Result another) 
+        public static UnificationResult And(this UnificationResult @this, UnificationResult another)
         {
-            if (!@this.Succeeded || !another.Succeeded)
+            if (!(@this?.Succeeded ?? false) || !(another?.Succeeded ?? false))
             {
                 return Unification.Failure;
             }
@@ -22,14 +22,13 @@ namespace Prolog.Engine
                         .AggregateIfAll(
                             new StructuralEquatableDictionary<Variable, Term>(),
                             variableInstantiations => variableInstantiations.All(i => i.Value.Equals(variableInstantiations.First().Value)),
-                            (accumulatedInstantiations, variableInstantiations) => 
+                            (accumulatedInstantiations, variableInstantiations) =>
                             {
                                 accumulatedInstantiations.Add(variableInstantiations.First());
                                 return accumulatedInstantiations;
-                            }
-                        );
+                            });
 
-            return success ? new Unification.Result(true, result) : Unification.Failure;
+            return success ? new UnificationResult(true, result) : Unification.Failure;
         }
     }
 }

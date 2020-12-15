@@ -6,8 +6,8 @@ namespace Prolog.Engine
     internal static class EnumerableExtentions
     {
         public static TAccumulate AggregateWhile<TSource, TAccumulate>(
-            this IEnumerable<TSource> source, 
-            TAccumulate seed, 
+            this IEnumerable<TSource> source,
+            TAccumulate seed,
             Func<TAccumulate, TSource, TAccumulate> func,
             Func<TAccumulate, bool> keepGoing)
         {
@@ -22,9 +22,9 @@ namespace Prolog.Engine
         }
 
         public static (TAccumulate, bool) AggregateIfAll<TSource, TAccumulate>(
-            this IEnumerable<TSource> source, 
+            this IEnumerable<TSource> source,
             TAccumulate seed,
-            Func<TSource, bool> predicate, 
+            Func<TSource, bool> predicate,
             Func<TAccumulate, TSource, TAccumulate> func)
         {
             using var sourceEnumerator = source.GetEnumerator();

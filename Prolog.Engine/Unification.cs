@@ -4,18 +4,16 @@ namespace Prolog.Engine
 {
     public static class Unification
     {
-        public sealed record Result(bool Succeeded, StructuralEquatableDictionary<Variable, Term> Instantiations);
-
-        public static Result CarryOut(Term leftTerm, Term rightTerm)
+        public static UnificationResult CarryOut(Term leftTerm, Term rightTerm)
         {
             if (leftTerm is Atom leftAtom && rightTerm is Atom rightAtom)
             {
-                return new Result(Succeeded: leftAtom.Equals(rightAtom), Instantiations: NoInstantiations);
+                return new UnificationResult(Succeeded: leftAtom.Equals(rightAtom), Instantiations: NoInstantiations);
             }
 
             if (leftTerm is Number leftNumber && rightTerm is Number rightNumber)
             {
-                return new Result(Succeeded: leftNumber.Equals(rightNumber), Instantiations: NoInstantiations);
+                return new UnificationResult(Succeeded: leftNumber.Equals(rightNumber), Instantiations: NoInstantiations);
             }
 
             if (leftTerm is Variable leftVariable)
@@ -35,7 +33,7 @@ namespace Prolog.Engine
                     : leftComplexTerm.Arguments
                         .Zip(rightComplexTerm.Arguments)
                         .AggregateWhile(
-                            new Result(Succeeded: true, NoInstantiations),
+                            new UnificationResult(Succeeded: true, NoInstantiations),
                             (result, correspondingArguments) => result.And(CarryOut(correspondingArguments.Item1, correspondingArguments.Item2)),
                             result => result.Succeeded);
             }
@@ -43,8 +41,36 @@ namespace Prolog.Engine
             return Failure;
         }
 
-        public static readonly Result Failure = new Result(Succeeded: false, Instantiations: new StructuralEquatableDictionary<Variable, Term>());
+        public static bool IsPossible(Term leftTerm, Term rightTerm)
+        {
+            if (leftTerm is Atom leftAtom && rightTerm is Atom rightAtom)
+            {
+                return leftAtom.Equals(rightAtom);
+            }
 
-        private static readonly StructuralEquatableDictionary<Variable, Term> NoInstantiations = new();
+            if (leftTerm is Number leftNumber && rightTerm is Number rightNumber)
+            {
+                return leftNumber.Equals(rightNumber);
+            }
+
+            if (leftTerm is Variable || rightTerm is Variable)
+            {
+                return true;
+            }
+
+            if (leftTerm is ComplexTerm leftComplexTerm && rightTerm is ComplexTerm rightComplexTerm)
+            {
+                return leftComplexTerm.Functor.Equals(rightComplexTerm.Functor) &&
+                       leftComplexTerm.Arguments
+                        .Zip(rightComplexTerm.Arguments)
+                        .All(it => IsPossible(it.First, it.Second));
+            }
+
+            return false;
+       }
+
+        public static readonly UnificationResult Failure = new UnificationResult(Succeeded: false, Instantiations: new StructuralEquatableDictionary<Variable, Term>());
+
+        private static readonly StructuralEquatableDictionary<Variable, Term> NoInstantiations = new ();
     }
 }

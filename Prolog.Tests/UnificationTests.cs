@@ -3,11 +3,12 @@ using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Prolog.Engine;
 using static Prolog.Tests.PrologApi;
+using static Prolog.Tests.StockTerms;
 
 namespace Prolog.Tests
 {
     [TestClass]
-    public class GivenPrologInterpreter
+    public class UnificationTests
     {
         // If term1 and term2 are constants, then term1 and term2 unify if and only if 
         // they are the same atom, or the same number.
@@ -71,9 +72,9 @@ namespace Prolog.Tests
                         TermPairs = new[]
                             {
                                 new[] { line(X), line(atom) },
-                                new[] { line(X, _), line(atom, _) },
-                                new[] { line(_, X), line(_, atom) },
-                                new[] { line(_, X, __), line(_, atom, __) }
+                                new[] { line(X, Something), line(atom, Something) },
+                                new[] { line(Something, X), line(Something, atom) },
+                                new[] { line(Something, X, SomethingElse), line(Something, atom, SomethingElse) }
                             }
                     },
 
@@ -83,10 +84,10 @@ namespace Prolog.Tests
                         TermPairs = new[]
                             {
                                 new[] { line(X, one), line(atom, Y) },
-                                new[] { line(_, X, one), line(_, atom, Y) },
-                                new[] { line(X, _, one), line(atom, _, Y) },
-                                new[] { line(X, one, _), line(atom, Y, _) },
-                                new[] { line(_, X, one, __), line(_, atom, Y, __) },
+                                new[] { line(Something, X, one), line(Something, atom, Y) },
+                                new[] { line(X, Something, one), line(atom, Something, Y) },
+                                new[] { line(X, one, Something), line(atom, Y, Something) },
+                                new[] { line(Something, X, one, SomethingElse), line(Something, atom, Y, SomethingElse) },
                             }
                     },
 
@@ -96,13 +97,13 @@ namespace Prolog.Tests
                         TermPairs = new[]
                             {
                                 new[] { line(point(X)), line(point(atom)) },
-                                new[] { line(point(X), _), line(point(atom), _) },
-                                new[] { line(_, point(X)), line(_, point(atom)) },
-                                new[] { line(_, point(X), __), line(_, point(atom), __) },
+                                new[] { line(point(X), Something), line(point(atom), Something) },
+                                new[] { line(Something, point(X)), line(Something, point(atom)) },
+                                new[] { line(Something, point(X), SomethingElse), line(Something, point(atom), SomethingElse) },
 
-                                new[] { line(point(X, _)), line(point(atom, _)) },
-                                new[] { line(point(_, X)), line(point(_, atom)) },
-                                new[] { line(point(_, X, __)), line(point(_, atom, __)) }
+                                new[] { line(point(X, Something)), line(point(atom, Something)) },
+                                new[] { line(point(Something, X)), line(point(Something, atom)) },
+                                new[] { line(point(Something, X, SomethingElse)), line(point(Something, atom, SomethingElse)) }
                             }
                     },
 
@@ -112,9 +113,9 @@ namespace Prolog.Tests
                         TermPairs = new[]
                             {
                                 new[] { line(X), line(point(atom)) },
-                                new[] { line(X, _), line(point(atom), _) },
-                                new[] { line(_, X), line(_, point(atom)) },
-                                new[] { line(_, X, __), line(_, point(atom), __) }
+                                new[] { line(X, Something), line(point(atom), Something) },
+                                new[] { line(Something, X), line(Something, point(atom)) },
+                                new[] { line(Something, X, SomethingElse), line(Something, point(atom), SomethingElse) }
                             }
                     }
                 }
@@ -136,15 +137,15 @@ namespace Prolog.Tests
                 {
                     // incompatible functors
                     new[] { line(X), point(atom) },
-                    new[] { line(X, _), point(atom, _) },
-                    new[] { line(_, X), point(_, atom) },
-                    new[] { line(_, X, __), point(_, atom, __) },
+                    new[] { line(X, Something), point(atom, Something) },
+                    new[] { line(Something, X), point(Something, atom) },
+                    new[] { line(Something, X, SomethingElse), point(Something, atom, SomethingElse) },
 
                     // incompatible arity
-                    new[] { line(X), line(atom, _) },
-                    new[] { line(X, _), line(atom) },
-                    new[] { line(_, X), line(atom) },
-                    new[] { line(_, X, __), line(_, atom) },
+                    new[] { line(X), line(atom, Something) },
+                    new[] { line(X, Something), line(atom) },
+                    new[] { line(Something, X), line(atom) },
+                    new[] { line(Something, X, SomethingElse), line(Something, atom) },
 
                     //  variable instantiations are incompatible
                     new[] { line(X, X), line(atom, one) },
@@ -184,24 +185,5 @@ namespace Prolog.Tests
 
             Assert.IsFalse(wrongUnifications.Any(), string.Join(Environment.NewLine, wrongUnifications));
         }
-
-        private static ComplexTerm date(params Term[] arguments) => ComplexTerm(Functor("date", arguments.Length), arguments);
-
-        private static ComplexTerm line(params Term[] arguments) => ComplexTerm(Functor("line", arguments.Length), arguments);
-
-        private static ComplexTerm point(params Term[] arguments) => ComplexTerm(Functor("point", arguments.Length), arguments);
-
-        private static ComplexTerm vertical(params Term[] arguments) => ComplexTerm(Functor("vertical", arguments.Length), arguments);
-
-        private static readonly Variable X = Variable("X");
-        private static readonly Variable X1 = Variable("X1");
-        private static readonly Variable Y = Variable("Y");
-        private static readonly Variable Z = Variable("Z");
-        private static readonly Variable P = Variable("P");
-        private static readonly Atom atom = Atom("atom");
-        private static readonly Number one = Number(1);
-        private static readonly Number two = Number(2);
-        private static readonly Term _ = Number(3457);
-        private static readonly Term __ = Atom("something unimportant");
     }
 }

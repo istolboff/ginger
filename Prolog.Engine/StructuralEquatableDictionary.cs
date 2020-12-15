@@ -6,20 +6,32 @@ using System.Linq;
 
 namespace Prolog.Engine
 {
-    public sealed class StructuralEquatableDictionary<TKey, TValue> 
-        : IDictionary<TKey, TValue>
-        , IEquatable<StructuralEquatableDictionary<TKey, TValue>>
+    public sealed class StructuralEquatableDictionary<TKey, TValue> :
+        IDictionary<TKey, TValue>,
+        IReadOnlyDictionary<TKey, TValue>,
+        IEnumerable<KeyValuePair<TKey, TValue>>,
+        IEquatable<StructuralEquatableDictionary<TKey, TValue>>
         where TKey : notnull
     {
-        public TValue this[TKey key] 
-        { 
-            get => _dictionary[key]; 
-            set => _dictionary[key] = value; 
+        public StructuralEquatableDictionary() => 
+            _dictionary = new Dictionary<TKey, TValue>();
+
+        public StructuralEquatableDictionary(IEnumerable<KeyValuePair<TKey, TValue>> collection) =>
+            _dictionary = new Dictionary<TKey, TValue>(collection);
+
+        public TValue this[TKey key]
+        {
+            get => _dictionary[key];
+            set => _dictionary[key] = value;
         }
 
         public ICollection<TKey> Keys => _dictionary.Keys;
 
         public ICollection<TValue> Values => _dictionary.Values;
+
+        IEnumerable<TKey> IReadOnlyDictionary<TKey, TValue>.Keys => _dictionary.Keys;
+
+        IEnumerable<TValue> IReadOnlyDictionary<TKey, TValue>.Values => _dictionary.Values;
 
         public int Count => _dictionary.Count;
 
@@ -44,7 +56,7 @@ namespace Prolog.Engine
 
         public bool Remove(KeyValuePair<TKey, TValue> item) => _dictionary.Remove(item);
 
-        public bool TryGetValue(TKey key, [MaybeNullWhen(false)] out TValue value) => 
+        public bool TryGetValue(TKey key, [MaybeNullWhen(false)] out TValue value) =>
             _dictionary.TryGetValue(key, out value);
 
         IEnumerator IEnumerable.GetEnumerator() => _dictionary.GetEnumerator();
@@ -52,7 +64,7 @@ namespace Prolog.Engine
         public bool Equals(StructuralEquatableDictionary<TKey, TValue>? other) =>
             other != null &&
             Count == other.Count &&
-            other.All(kvp => TryGetValue(kvp.Key, out var value) && 
+            other.All(kvp => TryGetValue(kvp.Key, out var value) &&
                              EqualityComparer<TValue>.Default.Equals(kvp.Value, value));
 
         public override bool Equals(object? obj) => Equals(obj as StructuralEquatableDictionary<TKey, TValue>);
@@ -60,20 +72,20 @@ namespace Prolog.Engine
         public override int GetHashCode() => _dictionary.GetHashCode();
 
         public override string ToString() =>
-            "{" + 
+            "{" +
                 string.Join(
-                    ", ", 
-                    _dictionary.Take(3).Select(kvp => $"[{kvp.Key}] = {kvp.Value}")) + 
-                (Count > 3 ? "..." : string.Empty) + 
+                    ", ",
+                    _dictionary.Take(3).Select(kvp => $"[{kvp.Key}] = {kvp.Value}")) +
+                (Count > 3 ? "..." : string.Empty) +
             "}";
 
         public static bool operator ==(StructuralEquatableDictionary<TKey, TValue>? left, StructuralEquatableDictionary<TKey, TValue>? right) =>
-            ReferenceEquals(left, right) || 
-            !ReferenceEquals(left, null) && left.Equals(right);
+            ReferenceEquals(left, right) ||
+            (!ReferenceEquals(left, null) && left.Equals(right));
 
         public static bool operator !=(StructuralEquatableDictionary<TKey, TValue>? left, StructuralEquatableDictionary<TKey, TValue>? right) =>
             !(left == right);
 
-       private readonly IDictionary<TKey, TValue> _dictionary = new Dictionary<TKey, TValue>();
+        private readonly IDictionary<TKey, TValue> _dictionary = new Dictionary<TKey, TValue>();
     }
 }
