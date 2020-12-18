@@ -1,9 +1,6 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Collections.Immutable;
-using System.Globalization;
-using System.IO;
 using System.Linq;
 
 using static Prolog.Engine.Builtin;
@@ -18,7 +15,6 @@ namespace Prolog.Engine
 
         public static IEnumerable<UnificationResult> Find(Rule[] programRules, params ComplexTerm[] queries)
         {
-            SetupTracing();
             var queryVariableNames = ListAllMentionedVariableNames(queries);
             return FindCore(
                         programRules, 
@@ -29,6 +25,8 @@ namespace Prolog.Engine
                     .Select(result => ResolveInternalInstantiations(result, queryVariableNames)
                             .Trace("yield Proof"));
         }
+
+        public static event Action<string?, object>? ProofEvent;
 
         private static IEnumerable<UnificationResult> FindCore(
                 Rule[] programRules, 
@@ -184,36 +182,10 @@ namespace Prolog.Engine
         private static Variable GenerateNewVariable() =>
             new Variable(Name: $"_{++NextNewVariableIndex}", IsTemporary: true);
 
-        private static string TraceFilePath => Path.Combine(Path.GetTempPath(), "Prolog.trace");
-
-        private static void SetupTracing() => 
-            File.Delete(TraceFilePath);
-
         private static T Trace<T>(this T @this, string? description = null)
         {
-            if (description != null)
-            {
-                File.AppendAllText(TraceFilePath, $"{description}: ");
-            }
-
-            File.AppendAllText(TraceFilePath, Dump(@this));
-            File.AppendAllLines(TraceFilePath, new[] { string.Empty });
-
+            ProofEvent?.Invoke(description, @this!);
             return @this;
-
-            static string Dump<Q>(Q @this) =>
-                @this switch
-                {
-                    Atom atom => atom.Characters,
-                    Number number => number.Value.ToString(CultureInfo.InvariantCulture),
-                    Variable variable => variable.Name,
-                    ComplexTerm complexTerm => $"{complexTerm.Functor.Name}({string.Join(',', complexTerm.Arguments.Select(Dump))})",
-                    Rule rule => $"{Dump(rule.Conclusion)}:-{string.Join(',', rule.Premises.Select(Dump))}",
-                    UnificationResult unificationResult => string.Join(" & ",unificationResult.Instantiations.Select(i => $"{Dump(i.Key)} = {Dump(i.Value)}")),
-                    string text => text,
-                    IEnumerable collection => string.Join("; ", collection.Cast<object>().Select(Dump)),
-                    _ => @this?.ToString() ?? "NULL"
-                };
         }
 
         private static int NextNewVariableIndex;

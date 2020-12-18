@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using System.IO;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Prolog.Engine;
 using static Prolog.Engine.Proof;
@@ -9,6 +10,8 @@ using static Prolog.Tests.StockTerms;
 using static Prolog.Tests.VerboseReporting;
 
 using V = Prolog.Engine.StructuralEquatableDictionary<Prolog.Engine.Variable, Prolog.Engine.Term>;
+using System.Globalization;
+using System.Collections;
 
 namespace Prolog.Tests
 {
@@ -223,6 +226,47 @@ namespace Prolog.Tests
                 .ToList();
 
             Assert.IsFalse(erroneousProofs.Any(), Environment.NewLine + string.Join(Environment.NewLine, erroneousProofs));
-       }
-    }
+        }
+ 
+        [ClassInitialize]
+        public static void SetupLogging(TestContext? testContext)
+        {
+            TraceFilePath = Path.Combine(testContext?.TestLogsDir ?? Path.GetTempPath(), "Prolog.trace");
+
+            Proof.ProofEvent += (description, @this) =>
+            {
+                if (description != null)
+                {
+                    File.AppendAllText(TraceFilePath, $"{description}: ");
+                }
+
+                File.AppendAllText(TraceFilePath, Dump(@this));
+                File.AppendAllLines(TraceFilePath, new[] { string.Empty });
+
+                return;
+
+                static string Dump<Q>(Q @this) =>
+                    @this switch
+                    {
+                        Atom atom => atom.Characters,
+                        Number number => number.Value.ToString(CultureInfo.InvariantCulture),
+                        Variable variable => variable.Name,
+                        ComplexTerm complexTerm => $"{complexTerm.Functor.Name}({string.Join(',', complexTerm.Arguments.Select(Dump))})",
+                        Rule rule => $"{Dump(rule.Conclusion)}:-{string.Join(',', rule.Premises.Select(Dump))}",
+                        UnificationResult unificationResult => string.Join(" & ",unificationResult.Instantiations.Select(i => $"{Dump(i.Key)} = {Dump(i.Value)}")),
+                        string text => text,
+                        IEnumerable collection => string.Join("; ", collection.Cast<object>().Select(Dump)),
+                        _ => @this?.ToString() ?? "NULL"
+                    };
+            };
+        }
+
+        [TestInitialize]
+        public void Setup()
+        {
+            File.Delete(TraceFilePath!);
+        }
+
+        private static string? TraceFilePath; 
+   }
 }
