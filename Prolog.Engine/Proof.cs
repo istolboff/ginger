@@ -6,6 +6,8 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 
+using static Prolog.Engine.Builtin;
+
 namespace Prolog.Engine
 {
     public static class Proof
@@ -21,8 +23,9 @@ namespace Prolog.Engine
             return FindCore(
                         programRules, 
                         ImmutableList.Create<ComplexTerm>(queries),
-                        ImmutableHashSet.CreateRange(ListAllMentionedVariableNames(queries)),
-                        ImmutableDictionary.Create<Variable, Term>())
+                        ImmutableHashSet.CreateRange(queryVariableNames),
+                        ImmutableDictionary.Create<Variable, Term>(),
+                        useCutMode: false)
                     .Select(result => ResolveInternalInstantiations(result, queryVariableNames)
                             .Trace("yield Proof"));
         }
@@ -31,7 +34,8 @@ namespace Prolog.Engine
                 Rule[] programRules, 
                 ImmutableList<ComplexTerm> queries,
                 ImmutableHashSet<string> mentionedVariableNames,
-                ImmutableDictionary<Variable, Term> variableInstantiations)
+                ImmutableDictionary<Variable, Term> variableInstantiations,
+                bool useCutMode)
         {
             if (!queries.Any())
             {
@@ -42,25 +46,53 @@ namespace Prolog.Engine
             else
             {
                 var currentQuery = queries.First().Trace("currentQuery");
-                foreach (var matchingRule in FindMatchingRules(programRules, currentQuery).Trace("matching rules"))
+                if (currentQuery == Cut)
                 {
-                    var ruleWithRenamedVariables = RenameRuleVariablesToMakeThemDifferentFromAlreadyUsedNames(matchingRule, mentionedVariableNames).Trace("ruleWithRenamedVariables");
-                    var ruleConclusionUnificationResult = Unification.CarryOut(currentQuery, ruleWithRenamedVariables.Conclusion).Trace("ruleConclusionUnificationResult");
-                    var updatedQueries = queries.RemoveAt(0).InsertRange(0, ruleWithRenamedVariables.Premises).Trace("updatedQueries");
-                    var updatedQueriesWithSubstitutedVariables = updatedQueries.Select(p => ApplyVariableInstantiations(p, ruleConclusionUnificationResult.Instantiations)).Trace("updatedQueriesWithSubstitutedVariables");
                     foreach (var solution in FindCore(
-                        programRules, 
-                        ImmutableList.CreateRange<ComplexTerm>(updatedQueriesWithSubstitutedVariables),
-                        mentionedVariableNames.Union(ListAllMentionedVariableNames(ruleWithRenamedVariables.Premises)),
-                        variableInstantiations.AddRange(ruleConclusionUnificationResult.Instantiations)))
+                            programRules, 
+                            queries.RemoveAt(0),
+                            mentionedVariableNames,
+                            variableInstantiations,
+                            useCutMode: false))
                     {
                         yield return solution;
+                    }                    
+                }
+                else
+                {
+                    foreach (var matchingRule in FindMatchingRules(programRules, currentQuery).Take(useCutMode ? 1 : int.MaxValue).Trace("matching rules"))
+                    {
+                        var matchingRuleContainsCut = matchingRule.Premises.Contains(Cut);
+                        var ruleWithRenamedVariables = RenameRuleVariablesToMakeThemDifferentFromAlreadyUsedNames(matchingRule, mentionedVariableNames).Trace("ruleWithRenamedVariables");
+                        var ruleConclusionUnificationResult = Unification.CarryOut(currentQuery, ruleWithRenamedVariables.Conclusion).Trace("ruleConclusionUnificationResult");
+                        var updatedQueries = queries.RemoveAt(0).InsertRange(0, ruleWithRenamedVariables.Premises).Trace("updatedQueries");
+                        var updatedQueriesWithSubstitutedVariables = updatedQueries.Select(p => ApplyVariableInstantiations(p, ruleConclusionUnificationResult.Instantiations)).Trace("updatedQueriesWithSubstitutedVariables");
+                        foreach (var solution in FindCore(
+                            programRules, 
+                            ImmutableList.CreateRange<ComplexTerm>(updatedQueriesWithSubstitutedVariables),
+                            mentionedVariableNames.Union(ListAllMentionedVariableNames(ruleWithRenamedVariables.Premises)),
+                            variableInstantiations.AddRange(ruleConclusionUnificationResult.Instantiations),
+                            useCutMode: useCutMode || matchingRuleContainsCut))
+                        {
+                            yield return solution;
+                        }
+
+                        if (matchingRuleContainsCut)
+                        {
+                            break;
+                        }
                     }
                 }
             }
 
             static IEnumerable<Rule> FindMatchingRules(Rule[] programRules, ComplexTerm query) =>
-                programRules.Where(rule => Unification.IsPossible(rule.Conclusion, query));
+                query.Functor switch 
+                {
+                    Functor functor => programRules.Where(rule => Unification.IsPossible(rule.Conclusion, query)),
+                    BuiltinFunctor builtinFunctor => builtinFunctor.Invoke(query.Arguments) ? new[] { new Rule(new ComplexTerm(new Functor("True", 0), new StructuralEquatableArray<Term>()), new StructuralEquatableArray<ComplexTerm>()) } : Enumerable.Empty<Rule>(),
+                    _ => throw new InvalidOperationException($"Do not know how to handle {query.Functor} functor.")
+                };
+                
 
             static Rule RenameRuleVariablesToMakeThemDifferentFromAlreadyUsedNames(Rule rule, IReadOnlySet<string> usedNames)
             {

@@ -2,10 +2,13 @@ using System;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Prolog.Engine;
+using static Prolog.Engine.Proof;
+using static Prolog.Engine.Builtin;
 using static Prolog.Tests.PrologApi;
 using static Prolog.Tests.StockTerms;
 using static Prolog.Tests.VerboseReporting;
-using static Prolog.Engine.Proof;
+
+using V = Prolog.Engine.StructuralEquatableDictionary<Prolog.Engine.Variable, Prolog.Engine.Term>;
 
 namespace Prolog.Tests
 {
@@ -68,7 +71,7 @@ namespace Prolog.Tests
 
             var erroneousProofs = 
                 (from situation in situations
-                let actualProofs = Proof.Find(situation.Facts.Select(f => Fact(f)).ToArray(), situation.Query)
+                let actualProofs = Proof.Find(situation.Facts.Select(f => Fact(f)).ToArray(), situation.Query).ToArray()
                 where !situation.ExpectedProofs.SequenceEqual(actualProofs)
                 select new 
                 { 
@@ -76,7 +79,7 @@ namespace Prolog.Tests
                     Facts = Dumpable(situation.Facts), 
                     Query = Dumpable(situation.Query), 
                     ExpectedProofs = Dumpable(situation.ExpectedProofs), 
-                    ActualProofs = Dumpable(actualProofs.ToArray()) 
+                    ActualProofs = Dumpable(actualProofs) 
                 })
                 .ToList();
 
@@ -90,6 +93,7 @@ namespace Prolog.Tests
             {
                 new
                 {
+                    Description = "Simple recursion",
                     Program = new[] 
                         { 
                             Fact(edge(a, b)), 
@@ -105,18 +109,120 @@ namespace Prolog.Tests
 
             var erroneousProofs = 
                 (from situation in situations
-                let actualProofs = Proof.Find(situation.Program, situation.Query)
+                let actualProofs = Proof.Find(situation.Program, situation.Query).ToArray()
                 where !situation.ExpectedProofs.SequenceEqual(actualProofs)
                 select new 
                 { 
                     Prorgam = Dumpable(situation.Program), 
                     Query = situation.Query, 
                     ExpectedProofs = Dumpable(situation.ExpectedProofs), 
-                    ActualProofs = Dumpable(actualProofs.ToList()) 
+                    ActualProofs = Dumpable(actualProofs) 
                 })
                 .ToList();
 
             Assert.IsFalse(erroneousProofs.Any(), Environment.NewLine + string.Join(Environment.NewLine, erroneousProofs));
         }
+
+        [TestMethod]
+        public void RulesWithCut()
+        {
+            var situations = new[]
+            {
+                new
+                {
+                    Description = "Program without Cut",
+                    Program = new[] 
+                        { 
+                            Fact(i(one)), 
+                            Fact(i(two)), 
+                            Fact(j(one)), 
+                            Fact(j(two)),
+                            Fact(j(three)),
+                            Rule(s(X, Y), q(X, Y)), 
+                            Fact(s(zero, zero)),
+                            Rule(q(X, Y), i(X), j(Y)) 
+                        },
+                    Query = new[] { s(X, Y) },
+                    ExpectedSolutions = new[] 
+                    { 
+                        new V { [X] = one, [Y] = one },
+                        new V { [X] = one, [Y] = two },
+                        new V { [X] = one, [Y] = three },
+
+                        new V { [X] = two, [Y] = one },
+                        new V { [X] = two, [Y] = two },
+                        new V { [X] = two, [Y] = three },
+
+                        new V { [X] = zero, [Y] = zero }
+                    }
+                },
+
+                new
+                {
+                    Description = "The same program as before, but this time with Cut",
+                    Program = new[] 
+                        { 
+                            Fact(i(one)), 
+                            Fact(i(two)), 
+                            Fact(j(one)), 
+                            Fact(j(two)),
+                            Fact(j(three)),
+                            Rule(s(X, Y), q(X, Y)), 
+                            Fact(s(zero, zero)),
+                            Rule(q(X, Y), i(X), Cut, j(Y)) 
+                        },
+                    Query = new[] { s(X, Y) },
+                    ExpectedSolutions = new[] 
+                    { 
+                        new V { [X] = one, [Y] = one },
+                        new V { [X] = one, [Y] = two },
+                        new V { [X] = one, [Y] = three },
+
+                        new V { [X] = zero, [Y] = zero }
+                    }
+                },
+
+                new
+                {
+                    Description = "Classical Max",
+                    Program = new[]
+                    {
+                        Rule(max(X, Y, X), GreaterThanOrEqual(X, Y), Cut),
+                        Rule(max(X, Y, Y), LessThan(X, Y)),
+                        Fact(number(one)),
+                        Fact(number(two)),
+                        Fact(number(three))
+                    },
+                    Query = new[] { number(X), number(Y), max(X, Y, X) },
+                    ExpectedSolutions = new[] 
+                    {
+                        new V { [X] = one, [Y] = one },
+
+                        new V { [X] = two, [Y] = one },
+                        new V { [X] = two, [Y] = two },
+
+                        new V { [X] = three, [Y] = one },
+                        new V { [X] = three, [Y] = two },
+                        new V { [X] = three, [Y] = three }
+                    }
+                }
+            };
+
+            var erroneousProofs = 
+                (from situation in situations
+                let expectedProofs = situation.ExpectedSolutions.Select(vi => new UnificationResult(true, vi)).ToArray()
+                let actualProofs = Proof.Find(situation.Program, situation.Query).ToArray()
+                where !expectedProofs.SequenceEqual(actualProofs)
+                select new 
+                { 
+                    Prorgam = Dumpable(situation.Program), 
+                    Query = situation.Query, 
+                    ExpectedProofs = Dumpable(expectedProofs), 
+                    ActualProofs = Dumpable(actualProofs) 
+                })
+                .ToList();
+
+            Assert.IsFalse(erroneousProofs.Any(), Environment.NewLine + string.Join(Environment.NewLine, erroneousProofs));
+       }
     }
 }

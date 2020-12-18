@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.Linq;
 using Prolog.Engine;
 
 namespace Prolog.Tests
@@ -12,7 +14,7 @@ namespace Prolog.Tests
 
         public static Functor Functor(string name, int arity) => new Functor(name, arity);
 
-        public static ComplexTerm ComplexTerm(Functor functor, params Term[] arguments) => 
+        public static ComplexTerm ComplexTerm(FunctorBase functor, params Term[] arguments) => 
             new ComplexTerm(functor, new StructuralEquatableArray<Term>(arguments));
 
         public static Variable UnboundVariable(int id) => Variable($"_{id}");
