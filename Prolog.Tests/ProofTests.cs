@@ -1,6 +1,4 @@
 using System;
-using System.Collections;
-using System.Globalization;
 using System.IO;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -79,10 +77,10 @@ namespace Prolog.Tests
                 select new 
                 { 
                     Description = situation.Description,
-                    Facts = Dumpable(situation.Facts), 
-                    Query = Dumpable(situation.Query), 
-                    ExpectedProofs = Dumpable(situation.ExpectedProofs), 
-                    ActualProofs = Dumpable(actualProofs) 
+                    Facts = Dump(situation.Facts), 
+                    Query = Dump(situation.Query), 
+                    ExpectedProofs = Dump(situation.ExpectedProofs), 
+                    ActualProofs = Dump(actualProofs) 
                 })
                 .ToList();
 
@@ -116,10 +114,10 @@ namespace Prolog.Tests
                 where !situation.ExpectedProofs.SequenceEqual(actualProofs)
                 select new 
                 { 
-                    Prorgam = Dumpable(situation.Program), 
+                    Prorgam = Dump(situation.Program, Environment.NewLine), 
                     Query = situation.Query, 
-                    ExpectedProofs = Dumpable(situation.ExpectedProofs), 
-                    ActualProofs = Dumpable(actualProofs) 
+                    ExpectedProofs = Dump(situation.ExpectedProofs), 
+                    ActualProofs = Dump(actualProofs) 
                 })
                 .ToList();
 
@@ -261,6 +259,26 @@ namespace Prolog.Tests
                         new V { [X] = one, [Y] = one },
                         new V { [X] = one, [Y] = two }
                     }
+                },
+
+                new
+                {
+                    Description = "Fixed bug test",
+                    Program = new[]
+                    {
+                        Fact(p(two)),
+                        Fact(p(three)),
+                        Fact(q(one)),
+                        Fact(q(two)),
+                        Fact(q(three)),
+                        Rule(g(X), q(X), p(X), Cut),
+                        Rule(s(X), g(X))
+                    },
+                    Query = new[] { s(X) },
+                    ExpectedSolutions = new[] 
+                    {
+                        new V { [X] = two }
+                    }
                 }
             };
 
@@ -271,23 +289,74 @@ namespace Prolog.Tests
                 where !expectedProofs.SequenceEqual(actualProofs)
                 select new 
                 { 
-                    Prorgam = Dumpable(situation.Program), 
-                    Query = Dumpable(situation.Query),
-                    ExpectedProofs = Dumpable(expectedProofs), 
-                    ActualProofs = Dumpable(actualProofs) 
+                    situation.Description,
+                    Prorgam = Dump(situation.Program, Environment.NewLine), 
+                    Query = Dump(situation.Query),
+                    ExpectedProofs = Dump(expectedProofs), 
+                    ActualProofs = Dump(actualProofs) 
                 })
                 .ToList();
 
             Assert.IsFalse(erroneousProofs.Any(), Environment.NewLine + string.Join(Environment.NewLine, erroneousProofs));
         }
 
+        [TestMethod]
+        public void RulesWithNot()
+        {
+            var situations = new[]
+            {
+                new
+                {
+                    Description = "Example from http://lpn.swi-prolog.org/lpnpage.php?pagetype=html&pageid=lpn-htmlse45",
+                    Program = new[]
+                    {
+                        Rule(enjoys(vincent,X), burger(X), not(big_kahuna_burger(X))),
+
+                        Rule(burger(X), big_mac(X)),
+                        Rule(burger(X), big_kahuna_burger(X)),
+                        Rule(burger(X), whopper(X)),
+
+                        Fact(big_mac(a)),
+                        Fact(big_kahuna_burger(b)),
+                        Fact(big_mac(c)),
+                        Fact(whopper(d))
+                    },
+                    Query = new[] { enjoys(vincent,X) },
+                    ExpectedSolutions = new[] 
+                    {
+                        new V { [X] = a },
+                        new V { [X] = c },
+                        new V { [X] = d }
+                    }
+                }
+            };
+
+            var erroneousProofs = 
+                (from situation in situations
+                let expectedProofs = situation.ExpectedSolutions.Select(vi => new UnificationResult(true, vi)).ToArray()
+                let actualProofs = Proof.Find(situation.Program, situation.Query).ToArray()
+                where !expectedProofs.SequenceEqual(actualProofs)
+                select new 
+                { 
+                    Prorgam = Dump(situation.Program, Environment.NewLine),
+                    Query = Dump(situation.Query),
+                    ExpectedProofs = Dump(expectedProofs),
+                    ActualProofs = Dump(actualProofs)
+                })
+                .ToList();
+
+            Assert.IsFalse(erroneousProofs.Any(), Environment.NewLine + string.Join(Environment.NewLine, erroneousProofs));
+        }
+ 
         [ClassInitialize]
         public static void SetupLogging(TestContext? testContext)
         {
             TraceFilePath = Path.Combine(testContext?.TestLogsDir ?? Path.GetTempPath(), "Prolog.trace");
 
-            Proof.ProofEvent += (description, @this) =>
+            Proof.ProofEvent += (description, nestingLevel, @this) =>
             {
+                File.AppendAllText(TraceFilePath, new string(' ', nestingLevel * 3));
+
                 if (description != null)
                 {
                     File.AppendAllText(TraceFilePath, $"{description}: ");
@@ -297,20 +366,6 @@ namespace Prolog.Tests
                 File.AppendAllLines(TraceFilePath, new[] { string.Empty });
 
                 return;
-
-                static string Dump<Q>(Q @this) =>
-                    @this switch
-                    {
-                        Atom atom => atom.Characters,
-                        Number number => number.Value.ToString(CultureInfo.InvariantCulture),
-                        Variable variable => variable.Name,
-                        ComplexTerm complexTerm => $"{complexTerm.Functor.Name}({string.Join(',', complexTerm.Arguments.Select(Dump))})",
-                        Rule rule => $"{Dump(rule.Conclusion)}:-{string.Join(',', rule.Premises.Select(Dump))}",
-                        UnificationResult unificationResult => string.Join(" & ",unificationResult.Instantiations.Select(i => $"{Dump(i.Key)} = {Dump(i.Value)}")),
-                        string text => text,
-                        IEnumerable collection => string.Join("; ", collection.Cast<object>().Select(Dump)),
-                        _ => @this?.ToString() ?? "NULL"
-                    };
             };
         }
 

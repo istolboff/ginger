@@ -9,31 +9,30 @@ namespace Prolog.Engine
 {
     public static class Proof
     {
-#pragma warning disable CA1707
-        public static readonly Variable _ = new Variable("_");
-#pragma warning restore CA1707
-
-        public static IEnumerable<UnificationResult> Find(Rule[] programRules, params ComplexTerm[] queries)
+        public static IEnumerable<UnificationResult> Find(IReadOnlyCollection<Rule> programRules, params ComplexTerm[] queries)
         {
             var queryVariableNames = ListAllMentionedVariableNames(queries);
             return FindCore(
-                        programRules, 
+                        Builtin.Rules.Concat(programRules).ToArray(), 
                         ImmutableList.Create<ComplexTerm>(queries),
                         ImmutableHashSet.CreateRange(queryVariableNames),
                         ImmutableDictionary.Create<Variable, Term>(),
-                        useCutMode: queries.Contains(Cut))
+                        useCutMode: queries.Contains(Cut),
+                        nestingLevel: 0)
+                    .Where(result => result.Succeeded)
                     .Select(result => ResolveInternalInstantiations(result, queryVariableNames)
-                            .Trace("yield Proof"));
+                            .Trace(0, "yield Proof"));
         }
 
-        public static event Action<string?, object>? ProofEvent;
+        public static event Action<string?, int, object>? ProofEvent;
 
         private static IEnumerable<UnificationResult> FindCore(
-                Rule[] programRules, 
+                IReadOnlyCollection<Rule> programRules,
                 ImmutableList<ComplexTerm> queries,
                 ImmutableHashSet<string> mentionedVariableNames,
                 ImmutableDictionary<Variable, Term> variableInstantiations,
-                bool useCutMode)
+                bool useCutMode,
+                int nestingLevel)
         {
             if (!queries.Any())
             {
@@ -43,39 +42,51 @@ namespace Prolog.Engine
             }
             else
             {
-                var currentQuery = queries.First().Trace("currentQuery");
-                if (currentQuery == Cut)
+                var currentQueryRaw = queries.First().Trace(nestingLevel, "currentQueryRaw");
+                if (currentQueryRaw == Fail)
+                {
+                    yield return Unification.Failure;
+                }
+                else if (currentQueryRaw == Cut)
                 {
                     foreach (var solution in FindCore(
                             programRules, 
                             queries.RemoveAt(0),
                             mentionedVariableNames,
                             variableInstantiations,
-                            useCutMode: false))
+                            useCutMode: false,
+                            nestingLevel: nestingLevel + 1))
                     {
                         yield return solution;
                     }                    
                 }
                 else
                 {
-                    foreach (var matchingRule in FindMatchingRules(programRules, currentQuery).Take(useCutMode ? 1 : int.MaxValue).Trace("matching rules"))
+                    var currentQuery = currentQueryRaw.Functor == Call
+                        ? UnwrapCall(currentQueryRaw, variableInstantiations) 
+                        : currentQueryRaw;
+                    var matchingRules = FindMatchingRules(programRules, currentQuery);
+                    foreach (var matchingRule in matchingRules.Trace(nestingLevel, "matching rules"))
                     {
+                        var ruleWithRenamedVariables = RenameRuleVariablesToMakeThemDifferentFromAlreadyUsedNames(matchingRule, mentionedVariableNames);
+                        var ruleConclusionUnificationResult = Unification.CarryOut(currentQuery, ruleWithRenamedVariables.Conclusion).Trace(nestingLevel, "ruleConclusionUnificationResult");
+                        var updatedQueries = queries.RemoveAt(0).InsertRange(0, ruleWithRenamedVariables.Premises);
+                        var updatedQueriesWithSubstitutedVariables = updatedQueries.Select(p => ApplyVariableInstantiations(p, ruleConclusionUnificationResult.Instantiations)).Trace(nestingLevel, "updatedQueriesWithSubstitutedVariables");
                         var matchingRuleContainsCut = matchingRule.Premises.Contains(Cut);
-                        var ruleWithRenamedVariables = RenameRuleVariablesToMakeThemDifferentFromAlreadyUsedNames(matchingRule, mentionedVariableNames).Trace("ruleWithRenamedVariables");
-                        var ruleConclusionUnificationResult = Unification.CarryOut(currentQuery, ruleWithRenamedVariables.Conclusion).Trace("ruleConclusionUnificationResult");
-                        var updatedQueries = queries.RemoveAt(0).InsertRange(0, ruleWithRenamedVariables.Premises).Trace("updatedQueries");
-                        var updatedQueriesWithSubstitutedVariables = updatedQueries.Select(p => ApplyVariableInstantiations(p, ruleConclusionUnificationResult.Instantiations)).Trace("updatedQueriesWithSubstitutedVariables");
+                        var encounteredAtLeastOneProof = false;
                         foreach (var solution in FindCore(
                             programRules, 
                             ImmutableList.CreateRange<ComplexTerm>(updatedQueriesWithSubstitutedVariables),
                             mentionedVariableNames.Union(ListAllMentionedVariableNames(ruleWithRenamedVariables.Premises)),
                             variableInstantiations.AddRange(ruleConclusionUnificationResult.Instantiations),
-                            useCutMode: useCutMode || matchingRuleContainsCut))
+                            useCutMode: useCutMode || matchingRuleContainsCut,
+                            nestingLevel: nestingLevel + 1))
                         {
+                            encounteredAtLeastOneProof = true;
                             yield return solution;
                         }
 
-                        if (matchingRuleContainsCut)
+                        if ((useCutMode || matchingRuleContainsCut) && encounteredAtLeastOneProof)
                         {
                             break;
                         }
@@ -83,7 +94,19 @@ namespace Prolog.Engine
                 }
             }
 
-            static IEnumerable<Rule> FindMatchingRules(Rule[] programRules, ComplexTerm query) =>
+            static ComplexTerm UnwrapCall(ComplexTerm currentQueryRaw, IReadOnlyDictionary<Variable, Term> variableInstantiations) =>
+                currentQueryRaw.Arguments.SingleOrDefault() switch 
+                {
+                    ComplexTerm complexTerm => complexTerm,
+                    Variable variableToCall => variableInstantiations.TryGetValue(variableToCall, out var term)
+                        ? (term is ComplexTerm result
+                            ? result
+                            : throw new InvalidOperationException($"Variable {variableToCall.Name} is instantiated to {term} while it is supposed to be instantiated to a complex term in order to be callable."))
+                        : throw new InvalidOperationException($"Variable {variableToCall.Name} is supposed to be instantiated in order to be callable."),
+                    _ => throw new InvalidOperationException($"Can not apply call() to {currentQueryRaw.Arguments}. Only single variable is accepted.")
+                };
+
+            static IEnumerable<Rule> FindMatchingRules(IReadOnlyCollection<Rule> programRules, ComplexTerm query) =>
                 query.Functor switch 
                 {
                     Functor functor => programRules.Where(rule => Unification.IsPossible(rule.Conclusion, query)),
@@ -182,9 +205,9 @@ namespace Prolog.Engine
         private static Variable GenerateNewVariable() =>
             new Variable(Name: $"_{++NextNewVariableIndex}", IsTemporary: true);
 
-        private static T Trace<T>(this T @this, string? description = null)
+        private static T Trace<T>(this T @this, int nestingLevel, string? description = null)
         {
-            ProofEvent?.Invoke(description, @this!);
+            ProofEvent?.Invoke(description, nestingLevel, @this!);
             return @this;
         }
 

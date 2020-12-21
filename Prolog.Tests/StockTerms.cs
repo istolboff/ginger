@@ -27,6 +27,12 @@ namespace Prolog.Tests
         public static readonly ComplexTermFactory horizontal = MakeComplexTerm("horizontal");
         public static readonly ComplexTermFactory max = MakeComplexTerm("max");
         public static readonly ComplexTermFactory number = MakeComplexTerm("number");
+        public static readonly ComplexTermFactory enjoys = MakeComplexTerm("enjoys");
+        public static readonly ComplexTermFactory burger = MakeComplexTerm("burger");
+        public static readonly ComplexTermFactory big_kahuna_burger = MakeComplexTerm("big_kahuna_burger");
+        public static readonly ComplexTermFactory big_mac = MakeComplexTerm("big_mac");
+        public static readonly ComplexTermFactory whopper = MakeComplexTerm("whopper");
+        public static readonly ComplexTermFactory not = MakeComplexTerm(Builtin.Not);
 
         public static readonly Variable X = Variable("X");
         public static readonly Variable X1 = Variable("X1");
@@ -39,6 +45,7 @@ namespace Prolog.Tests
         public static readonly Atom b = Atom("b");
         public static readonly Atom c = Atom("c");
         public static readonly Atom d = Atom("d");
+        public static readonly Atom vincent = Atom("vincent");
 
         public static readonly Number zero = Number(0);
         public static readonly Number one = Number(1);
