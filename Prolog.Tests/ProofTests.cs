@@ -1,6 +1,8 @@
 using System;
-using System.Linq;
+using System.Collections;
+using System.Globalization;
 using System.IO;
+using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Prolog.Engine;
 using static Prolog.Engine.Proof;
@@ -10,8 +12,6 @@ using static Prolog.Tests.StockTerms;
 using static Prolog.Tests.VerboseReporting;
 
 using V = Prolog.Engine.StructuralEquatableDictionary<Prolog.Engine.Variable, Prolog.Engine.Term>;
-using System.Globalization;
-using System.Collections;
 
 namespace Prolog.Tests
 {
@@ -208,6 +208,59 @@ namespace Prolog.Tests
                         new V { [X] = three, [Y] = two },
                         new V { [X] = three, [Y] = three }
                     }
+                },
+
+                new
+                {
+                    Description = "1st query from the 1st exercise from http://lpn.swi-prolog.org/lpnpage.php?pagetype=html&pageid=lpn-htmlse46",
+                    Program = new[] 
+                    {
+                        Fact(p(one)),
+                        Rule(p(two), Cut),
+                        Fact(p(three))
+                    },
+                    Query = new[] { p(X) },
+                    ExpectedSolutions = new[] 
+                    {
+                        new V { [X] = one },
+                        new V { [X] = two }
+                    }
+                },
+
+                new
+                {
+                    Description = "2nd query from the 1st exercise from http://lpn.swi-prolog.org/lpnpage.php?pagetype=html&pageid=lpn-htmlse46",
+                    Program = new[] 
+                    {
+                        Fact(p(one)),
+                        Rule(p(two), Cut),
+                        Fact(p(three))
+                    },
+                    Query = new[] { p(X), p(Y) },
+                    ExpectedSolutions = new[] 
+                    {
+                        new V { [X] = one, [Y] = one },
+                        new V { [X] = one, [Y] = two },
+                        new V { [X] = two, [Y] = one },
+                        new V { [X] = two, [Y] = two }
+                    }
+                },
+
+                new
+                {
+                    Description = "3rd query from the 1st exercise from http://lpn.swi-prolog.org/lpnpage.php?pagetype=html&pageid=lpn-htmlse46",
+                    Program = new[] 
+                    {
+                        Fact(p(one)),
+                        Rule(p(two), Cut),
+                        Fact(p(three))
+                    },
+                    Query = new[] { p(X), Cut, p(Y) },
+                    ExpectedSolutions = new[] 
+                    {
+                        new V { [X] = one, [Y] = one },
+                        new V { [X] = one, [Y] = two }
+                    }
                 }
             };
 
@@ -219,7 +272,7 @@ namespace Prolog.Tests
                 select new 
                 { 
                     Prorgam = Dumpable(situation.Program), 
-                    Query = situation.Query, 
+                    Query = Dumpable(situation.Query),
                     ExpectedProofs = Dumpable(expectedProofs), 
                     ActualProofs = Dumpable(actualProofs) 
                 })
@@ -227,7 +280,7 @@ namespace Prolog.Tests
 
             Assert.IsFalse(erroneousProofs.Any(), Environment.NewLine + string.Join(Environment.NewLine, erroneousProofs));
         }
- 
+
         [ClassInitialize]
         public static void SetupLogging(TestContext? testContext)
         {

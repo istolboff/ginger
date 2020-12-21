@@ -21,7 +21,7 @@ namespace Prolog.Engine
                         ImmutableList.Create<ComplexTerm>(queries),
                         ImmutableHashSet.CreateRange(queryVariableNames),
                         ImmutableDictionary.Create<Variable, Term>(),
-                        useCutMode: false)
+                        useCutMode: queries.Contains(Cut))
                     .Select(result => ResolveInternalInstantiations(result, queryVariableNames)
                             .Trace("yield Proof"));
         }

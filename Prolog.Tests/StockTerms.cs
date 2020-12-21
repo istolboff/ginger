@@ -14,6 +14,7 @@ namespace Prolog.Tests
         public static readonly ComplexTermFactory g = MakeComplexTerm("g");
         public static readonly ComplexTermFactory h = MakeComplexTerm("h");
         public static readonly ComplexTermFactory s = MakeComplexTerm("s");
+        public static readonly ComplexTermFactory p = MakeComplexTerm("p");
         public static readonly ComplexTermFactory q = MakeComplexTerm("q");
         public static readonly ComplexTermFactory i = MakeComplexTerm("i");
         public static readonly ComplexTermFactory j = MakeComplexTerm("j");
