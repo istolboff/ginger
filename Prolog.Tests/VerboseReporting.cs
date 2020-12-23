@@ -15,7 +15,7 @@ namespace Prolog.Tests
                 Variable variable => variable.Name,
                 ComplexTerm complexTerm => $"{complexTerm.Functor.Name}({string.Join(',', complexTerm.Arguments.Select(a => Dump(a, enumSeparator)))})",
                 Rule rule => $"{Dump(rule.Conclusion, enumSeparator)}:-{string.Join(',', rule.Premises.Select(p => Dump(p, enumSeparator)))}",
-                UnificationResult unificationResult => string.Join(" & ",unificationResult.Instantiations.Select(i => $"{Dump(i.Key, enumSeparator)} = {Dump(i.Value, enumSeparator)}")),
+                UnificationResult unificationResult => unificationResult.Succeeded ? "success(" +  string.Join(" & ",unificationResult.Instantiations.Select(i => $"{Dump(i.Key, enumSeparator)} = {Dump(i.Value, enumSeparator)}")) + ")" : "no unification possible",
                 string text => text,
                 IEnumerable collection => string.Join(enumSeparator, collection.Cast<object>().Select(it => Dump(it, enumSeparator))),
                 _ => @this?.ToString() ?? "NULL"

@@ -2,7 +2,7 @@ using System;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Prolog.Engine;
-using static Prolog.Tests.PrologApi;
+using static Prolog.Engine.DomainApi;
 using static Prolog.Tests.StockTerms;
 
 namespace Prolog.Tests

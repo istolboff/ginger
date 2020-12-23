@@ -69,6 +69,8 @@ namespace Prolog.Engine
             return false;
        }
 
+        public static readonly UnificationResult Success = new UnificationResult(Succeeded: true, Instantiations: new StructuralEquatableDictionary<Variable, Term>());
+
         public static readonly UnificationResult Failure = new UnificationResult(Succeeded: false, Instantiations: new StructuralEquatableDictionary<Variable, Term>());
 
         private static readonly StructuralEquatableDictionary<Variable, Term> NoInstantiations = new ();

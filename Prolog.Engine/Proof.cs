@@ -4,6 +4,7 @@ using System.Collections.Immutable;
 using System.Linq;
 
 using static Prolog.Engine.Builtin;
+using static Prolog.Engine.DomainApi;
 
 namespace Prolog.Engine
 {
@@ -62,33 +63,40 @@ namespace Prolog.Engine
                 }
                 else
                 {
-                    var currentQuery = currentQueryRaw.Functor == Call
+                    var currentQuery = CallFunctor.Equals(currentQueryRaw.Functor)
                         ? UnwrapCall(currentQueryRaw, variableInstantiations) 
                         : currentQueryRaw;
                     var matchingRules = FindMatchingRules(programRules, currentQuery);
                     foreach (var matchingRule in matchingRules.Trace(nestingLevel, "matching rules"))
                     {
                         var ruleWithRenamedVariables = RenameRuleVariablesToMakeThemDifferentFromAlreadyUsedNames(matchingRule, mentionedVariableNames);
-                        var ruleConclusionUnificationResult = Unification.CarryOut(currentQuery, ruleWithRenamedVariables.Conclusion).Trace(nestingLevel, "ruleConclusionUnificationResult");
-                        var updatedQueries = queries.RemoveAt(0).InsertRange(0, ruleWithRenamedVariables.Premises);
-                        var updatedQueriesWithSubstitutedVariables = updatedQueries.Select(p => ApplyVariableInstantiations(p, ruleConclusionUnificationResult.Instantiations)).Trace(nestingLevel, "updatedQueriesWithSubstitutedVariables");
-                        var matchingRuleContainsCut = matchingRule.Premises.Contains(Cut);
-                        var encounteredAtLeastOneProof = false;
-                        foreach (var solution in FindCore(
-                            programRules, 
-                            ImmutableList.CreateRange<ComplexTerm>(updatedQueriesWithSubstitutedVariables),
-                            mentionedVariableNames.Union(ListAllMentionedVariableNames(ruleWithRenamedVariables.Premises)),
-                            variableInstantiations.AddRange(ruleConclusionUnificationResult.Instantiations),
-                            useCutMode: useCutMode || matchingRuleContainsCut,
-                            nestingLevel: nestingLevel + 1))
+                        var ruleConclusionUnificationResult = 
+                            (ruleWithRenamedVariables.Conclusion == True
+                                ? Unification.Success
+                                : Unification.CarryOut(currentQuery, ruleWithRenamedVariables.Conclusion))
+                                .Trace(nestingLevel, "ruleConclusionUnificationResult");
+                        if (ruleConclusionUnificationResult.Succeeded)
                         {
-                            encounteredAtLeastOneProof = true;
-                            yield return solution;
-                        }
+                            var updatedQueries = queries.RemoveAt(0).InsertRange(0, ruleWithRenamedVariables.Premises);
+                            var updatedQueriesWithSubstitutedVariables = updatedQueries.Select(p => ApplyVariableInstantiations(p, ruleConclusionUnificationResult.Instantiations)).Trace(nestingLevel, "updatedQueriesWithSubstitutedVariables");
+                            var matchingRuleContainsCut = matchingRule.Premises.Contains(Cut);
+                            var encounteredAtLeastOneProof = false;
+                            foreach (var solution in FindCore(
+                                programRules, 
+                                ImmutableList.CreateRange<ComplexTerm>(updatedQueriesWithSubstitutedVariables),
+                                mentionedVariableNames.Union(ListAllMentionedVariableNames(ruleWithRenamedVariables.Premises)),
+                                variableInstantiations.AddRange(ruleConclusionUnificationResult.Instantiations),
+                                useCutMode: useCutMode || matchingRuleContainsCut,
+                                nestingLevel: nestingLevel + 1))
+                            {
+                                encounteredAtLeastOneProof = true;
+                                yield return solution;
+                            }
 
-                        if ((useCutMode || matchingRuleContainsCut) && encounteredAtLeastOneProof)
-                        {
-                            break;
+                            if ((useCutMode || matchingRuleContainsCut) && encounteredAtLeastOneProof)
+                            {
+                                break;
+                            }
                         }
                     }
                 }
@@ -110,7 +118,7 @@ namespace Prolog.Engine
                 query.Functor switch 
                 {
                     Functor functor => programRules.Where(rule => Unification.IsPossible(rule.Conclusion, query)),
-                    BuiltinFunctor builtinFunctor => builtinFunctor.Invoke(query.Arguments) ? new[] { new Rule(new ComplexTerm(new Functor("True", 0), new StructuralEquatableArray<Term>()), new StructuralEquatableArray<ComplexTerm>()) } : Enumerable.Empty<Rule>(),
+                    BuiltinFunctor builtinFunctor => builtinFunctor.Invoke(query.Arguments) ? new[] { Rule(True) } : Enumerable.Empty<Rule>(),
                     _ => throw new InvalidOperationException($"Do not know how to handle {query.Functor} functor.")
                 };
                 

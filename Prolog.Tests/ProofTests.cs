@@ -3,9 +3,8 @@ using System.IO;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Prolog.Engine;
-using static Prolog.Engine.Proof;
 using static Prolog.Engine.Builtin;
-using static Prolog.Tests.PrologApi;
+using static Prolog.Engine.DomainApi;
 using static Prolog.Tests.StockTerms;
 using static Prolog.Tests.VerboseReporting;
 
@@ -26,7 +25,7 @@ namespace Prolog.Tests
                     Description = "Single unification without variable instantiations",
                     Facts = new[] { f(a) },
                     Query = new[] { f(a) },
-                    ExpectedProofs = new[] { Success }
+                    ExpectedProofs = new[] { Unification.Success }
                 },
 
                 new
@@ -310,7 +309,7 @@ namespace Prolog.Tests
                     Description = "Example from http://lpn.swi-prolog.org/lpnpage.php?pagetype=html&pageid=lpn-htmlse45",
                     Program = new[]
                     {
-                        Rule(enjoys(vincent,X), burger(X), not(big_kahuna_burger(X))),
+                        Rule(enjoys(vincent,X), burger(X), Not(big_kahuna_burger(X))),
 
                         Rule(burger(X), big_mac(X)),
                         Rule(burger(X), big_kahuna_burger(X)),
@@ -347,6 +346,128 @@ namespace Prolog.Tests
 
             Assert.IsFalse(erroneousProofs.Any(), Environment.NewLine + string.Join(Environment.NewLine, erroneousProofs));
         }
+
+        [TestMethod]
+        public void ListTests()
+        {
+            var situations = new[]
+            {
+                new
+                {
+                    Description = "Testing built-in member() functor",
+                    Query = new[] { Member(X, List(dudweiler,fahlquemont,forbach,freyming,metz,nancy,saarbruecken,stAvold)) },
+                    ExpectedSolutions = new[] 
+                    {
+                        new V { [X] = dudweiler },
+                        new V { [X] = fahlquemont },
+                        new V { [X] = forbach },
+                        new V { [X] = freyming },
+                        new V { [X] = metz },
+                        new V { [X] = nancy },
+                        new V { [X] = saarbruecken },
+                        new V { [X] = stAvold }                    
+                    }
+                },
+
+                new
+                {
+                    Description = "Testing not(member(X, Y)) junction, checking the presence of an atom",
+                    Query = new[] 
+                    { 
+                        Not(Member(fahlquemont, List(dudweiler,metz,nancy,saarbruecken,stAvold)))
+                    },
+                    ExpectedSolutions = new[] 
+                    {
+                        new V()
+                    }
+                },
+
+                new
+                {
+                    Description = "Testing not(member(X, Y)) junction, listing all possible proofs",
+                    Query = new[] 
+                    { 
+                        Member(X, List(dudweiler,fahlquemont,forbach,freyming,metz,nancy,saarbruecken,stAvold)),
+                        Not(Member(X, List(dudweiler,metz,nancy,saarbruecken,stAvold)))
+                    },
+                    ExpectedSolutions = new[] 
+                    {
+                        new V { [X] = fahlquemont },
+                        new V { [X] = forbach },
+                        new V { [X] = freyming }
+                    }
+                }
+            };
+
+            var erroneousProofs = 
+                (from situation in situations
+                let expectedProofs = situation.ExpectedSolutions.Select(vi => new UnificationResult(true, vi)).ToArray()
+                let actualProofs = Proof.Find(Array.Empty<Rule>(), situation.Query).ToArray()
+                where !expectedProofs.SequenceEqual(actualProofs)
+                select new 
+                { 
+                    Query = Dump(situation.Query),
+                    ExpectedProofs = Dump(expectedProofs),
+                    ActualProofs = Dump(actualProofs)
+                })
+                .ToList();
+
+            Assert.IsFalse(erroneousProofs.Any(), Environment.NewLine + string.Join(Environment.NewLine, erroneousProofs));
+        }
+
+        [TestMethod]
+        public void RouteBuilding()
+        {
+            var situations = new[]
+            {
+                new
+                {
+                    Description = "Building a route in an acyclic graph",
+                    Program = new[]
+                    {
+                        Fact(directTrain(saarbruecken, dudweiler)),
+                        Fact(directTrain(forbach,      saarbruecken)),
+                        Fact(directTrain(freyming,     forbach)),
+                        Fact(directTrain(stAvold,      freyming)),
+                        Fact(directTrain(fahlquemont,  stAvold)),
+                        Fact(directTrain(metz,         fahlquemont)),
+                        Fact(directTrain(nancy,        metz)),
+
+                        Rule(connected(A, B), directTrain(A, B)),
+                        Rule(connected(A, B), directTrain(B, A)),
+
+                        Rule(route(A, B, List(A, B), _), connected(A, B), Cut),
+                        Rule(route(A, B, Dot(A, R), Visited),
+                            connected(A, C),
+                            Not(Member(C, Visited)),
+                            route(C, B, R, Dot(A, Visited))),
+
+                        Rule(route(A, B, R), route(A, B, R, EmptyList))
+                    },
+                    Query = new[] { route(forbach, metz, Route) },
+                    ExpectedSolutions = new[] 
+                    {
+                        new V { [Route] = List(forbach, freyming, stAvold, fahlquemont, metz) }
+                    }
+                }
+            };
+
+            var erroneousProofs = 
+                (from situation in situations
+                let expectedProofs = situation.ExpectedSolutions.Select(vi => new UnificationResult(true, vi)).ToArray()
+                let actualProofs = Proof.Find(situation.Program, situation.Query).ToArray()
+                where !expectedProofs.SequenceEqual(actualProofs)
+                select new 
+                { 
+                    Prorgam = Dump(situation.Program, Environment.NewLine),
+                    Query = Dump(situation.Query),
+                    ExpectedProofs = Dump(expectedProofs),
+                    ActualProofs = Dump(actualProofs)
+                })
+                .ToList();
+
+            Assert.IsFalse(erroneousProofs.Any(), Environment.NewLine + string.Join(Environment.NewLine, erroneousProofs));
+        }
  
         [ClassInitialize]
         public static void SetupLogging(TestContext? testContext)
@@ -355,6 +476,11 @@ namespace Prolog.Tests
 
             Proof.ProofEvent += (description, nestingLevel, @this) =>
             {
+                // if (new[] {"currentQueryRaw", "matching rules"}.All(it => !(description?.StartsWith(it, StringComparison.InvariantCulture) ?? false)))
+                // {
+                //     return;
+                // }
+
                 File.AppendAllText(TraceFilePath, new string(' ', nestingLevel * 3));
 
                 if (description != null)
@@ -364,8 +490,6 @@ namespace Prolog.Tests
 
                 File.AppendAllText(TraceFilePath, Dump(@this));
                 File.AppendAllLines(TraceFilePath, new[] { string.Empty });
-
-                return;
             };
         }
 
