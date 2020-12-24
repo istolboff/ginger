@@ -14,15 +14,15 @@ namespace Prolog.Engine
         {
             var queryVariableNames = ListAllMentionedVariableNames(queries);
             return FindCore(
-                        Builtin.Rules.Concat(programRules).ToArray(), 
-                        ImmutableList.Create(queries),
-                        ImmutableHashSet.CreateRange(queryVariableNames),
-                        ImmutableDictionary.Create<Variable, Term>(),
+                        programRules: Builtin.Rules.Concat(programRules).ToArray(), 
+                        queries: ImmutableList.Create(queries),
+                        mentionedVariableNames: ImmutableHashSet.CreateRange(queryVariableNames),
+                        variableInstantiations: ImmutableDictionary.Create<Variable, Term>(),
                         useCutMode: queries.Contains(Cut),
                         nestingLevel: 0)
                     .Where(result => result.Succeeded)
                     .Select(result => ResolveInternalInstantiations(result, queryVariableNames)
-                            .Trace(0, "yield Proof"));
+                                        .Trace(0, "yield Proof"));
         }
 
         public static event Action<string?, int, object>? ProofEvent;
@@ -76,7 +76,7 @@ namespace Prolog.Engine
                         if (ruleConclusionUnificationResult.Succeeded)
                         {
                             var updatedQueries = queries.RemoveAt(0).InsertRange(0, ruleWithRenamedVariables.Premises);
-                            var updatedQueriesWithSubstitutedVariables = updatedQueries.Select(p => ApplyVariableInstantiations(p, ruleConclusionUnificationResult.Instantiations)).Trace(nestingLevel, "updatedQueriesWithSubstitutedVariables");
+                            var updatedQueriesWithSubstitutedVariables = updatedQueries.Select(p => ApplyVariableInstantiations(p, ruleConclusionUnificationResult.Instantiations));
                             var matchingRuleContainsCut = matchingRule.Premises.Contains(Cut);
                             var encounteredAtLeastOneProof = false;
                             foreach (var solution in FindCore(
@@ -125,12 +125,12 @@ namespace Prolog.Engine
             {
                 var renamedVariables = new Dictionary<string, Variable>();
                 return Rule(
-                    conclusion: RenameComplexTermVariablesToMakeThemDifferentFromAlreadyUsedNames(rule.Conclusion, usedNames, renamedVariables),
+                    conclusion: RenameVariablesToMakeThemDifferentFromAlreadyUsedNames(rule.Conclusion, usedNames, renamedVariables),
                     premises: rule.Premises.Select(
-                            ct => RenameComplexTermVariablesToMakeThemDifferentFromAlreadyUsedNames(ct, usedNames, renamedVariables)));
+                            ct => RenameVariablesToMakeThemDifferentFromAlreadyUsedNames(ct, usedNames, renamedVariables)));
             }
 
-            static ComplexTerm RenameComplexTermVariablesToMakeThemDifferentFromAlreadyUsedNames(
+            static ComplexTerm RenameVariablesToMakeThemDifferentFromAlreadyUsedNames(
                 ComplexTerm complexTerm, 
                 IReadOnlySet<string> usedNames,
                 IDictionary<string, Variable> renamedVariables) =>
@@ -145,7 +145,7 @@ namespace Prolog.Engine
                                     ? renamedVariable
                                     : renamedVariables.AddAndReturnValue(v.Name, GenerateNewVariable()),
                             ComplexTerm ct => 
-                                    RenameComplexTermVariablesToMakeThemDifferentFromAlreadyUsedNames(ct, usedNames, renamedVariables),
+                                    RenameVariablesToMakeThemDifferentFromAlreadyUsedNames(ct, usedNames, renamedVariables),
                             _ => argument
                         }));
         }
