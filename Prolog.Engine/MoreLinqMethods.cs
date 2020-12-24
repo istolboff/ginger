@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace Prolog.Engine
 {
-    internal static class EnumerableExtentions
+    internal static class MoreLinqMethods
     {
         public static TAccumulate AggregateWhile<TSource, TAccumulate>(
             this IEnumerable<TSource> source,
@@ -40,6 +40,23 @@ namespace Prolog.Engine
             }
 
             return (result, true);
+        }
+
+        public static TValue AddAndReturnValue<TKey, TValue>(
+            this IDictionary<TKey, TValue> @this, 
+            TKey key, 
+            TValue value)
+        {
+            @this.Add(key, value);
+            return value;
+        }
+
+        public static IDictionary<TKey, TValue> AddAndReturnSelf<TKey, TValue>(
+            this IDictionary<TKey, TValue> @this, 
+            KeyValuePair<TKey, TValue> item)
+        {
+            @this.Add(item);
+            return @this;
         }
     }
 }

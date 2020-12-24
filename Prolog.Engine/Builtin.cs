@@ -49,9 +49,6 @@ namespace Prolog.Engine
         public static ComplexTerm Not(Term term) => 
             ComplexTerm(Functor("not", 1), term);
 
-        public static ComplexTerm Call(Term callee) =>
-            ComplexTerm(CallFunctor, callee);
-
         public static readonly IReadOnlyCollection<Rule> Rules = new[]
         {
             // not()
@@ -62,6 +59,9 @@ namespace Prolog.Engine
             Fact(Member(X, Dot(X, _))),
             Rule(Member(X, Dot(_, T)), Member(X, T)),
         };
+
+        private static ComplexTerm Call(Term callee) =>
+            ComplexTerm(CallFunctor, callee);
 
         // stock terms, usable for formulating built-in rules
         private static Variable X => Variable("X");

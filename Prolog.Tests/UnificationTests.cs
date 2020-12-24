@@ -120,7 +120,7 @@ namespace Prolog.Tests
                     }
                 }
                 from termPair in test.TermPairs
-                from arguments in new (ComplexTerm, ComplexTerm)[] { (termPair[0], termPair[1]), (termPair[1], termPair[0]) }
+                from arguments in new[] { (termPair[0], termPair[1]), (termPair[1], termPair[0]) }
                 let unification = Unification.CarryOut(arguments.Item1, arguments.Item2)
                 where !unification.Succeeded || !unification.Equals(test.ExpectedUnification)
                 select new { arguments.Item1, arguments.Item2, test.ExpectedUnification, ActualUnification = unification })
@@ -152,7 +152,7 @@ namespace Prolog.Tests
                     new[] { line(point(X), X), line(point(atom), one) },
                     new[] { line(X, point(X)), line(one, point(atom)) }
                 }
-                from arguments in new (ComplexTerm, ComplexTerm)[] { (termPair[0], termPair[1]), (termPair[1], termPair[0]) }
+                from arguments in new[] { (termPair[0], termPair[1]), (termPair[1], termPair[0]) }
                 let unification = Unification.CarryOut(arguments.Item1, arguments.Item2)
                 where unification.Succeeded
                 select new { Arguments = arguments, Unification = unification })

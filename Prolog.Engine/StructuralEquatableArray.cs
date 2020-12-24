@@ -5,6 +5,12 @@ using System.Linq;
 
 namespace Prolog.Engine
 {
+    public static class StructuralEquatableArray
+    {
+        public static StructuralEquatableArray<T> Empty<T>() => 
+            new (Array.Empty<T>());
+    }
+
     public sealed class StructuralEquatableArray<T> : IReadOnlyList<T>, IEquatable<StructuralEquatableArray<T>>
     {
         public StructuralEquatableArray(params T[] values) => _values = values;
@@ -35,9 +41,6 @@ namespace Prolog.Engine
 
         public static bool operator !=(StructuralEquatableArray<T>? left, StructuralEquatableArray<T>? right) =>
             !(left == right);
-
-        public static readonly StructuralEquatableArray<ComplexTerm> Empty = 
-            new StructuralEquatableArray<ComplexTerm>(Array.Empty<ComplexTerm>());
 
         private readonly IReadOnlyList<T> _values;
     }

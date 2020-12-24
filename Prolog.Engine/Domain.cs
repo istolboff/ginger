@@ -14,7 +14,7 @@ namespace Prolog.Engine
     public sealed record Variable(string Name, bool IsTemporary = false) : Term;
 #pragma warning restore CA1801
 
-    public abstract record FunctorBase(string Name, int arity);
+    public abstract record FunctorBase(string Name, int Arity);
 
     public sealed record Functor(string Name, int Arity) : FunctorBase(Name, Arity);
 
@@ -26,8 +26,6 @@ namespace Prolog.Engine
 
     public sealed record Rule(ComplexTerm Conclusion, StructuralEquatableArray<ComplexTerm> Premises);
 
-#pragma warning disable CA2227 // Collection properties should be read only
     public sealed record UnificationResult(bool Succeeded, StructuralEquatableDictionary<Variable, Term> Instantiations);
-#pragma warning restore CA2227
 #pragma warning restore SA1313
 }

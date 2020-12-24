@@ -8,7 +8,7 @@ using static Prolog.Engine.DomainApi;
 using static Prolog.Tests.StockTerms;
 using static Prolog.Tests.VerboseReporting;
 
-using V = Prolog.Engine.StructuralEquatableDictionary<Prolog.Engine.Variable, Prolog.Engine.Term>;
+using V = System.Collections.Generic.Dictionary<Prolog.Engine.Variable, Prolog.Engine.Term>;
 
 namespace Prolog.Tests
 {
@@ -25,7 +25,7 @@ namespace Prolog.Tests
                     Description = "Single unification without variable instantiations",
                     Facts = new[] { f(a) },
                     Query = new[] { f(a) },
-                    ExpectedProofs = new[] { Unification.Success }
+                    ExpectedProofs = new[] { Unification.Success() }
                 },
 
                 new
@@ -71,11 +71,11 @@ namespace Prolog.Tests
 
             var erroneousProofs = 
                 (from situation in situations
-                let actualProofs = Proof.Find(situation.Facts.Select(f => Fact(f)).ToArray(), situation.Query).ToArray()
+                let actualProofs = Proof.Find(situation.Facts.Select(Fact).ToArray(), situation.Query).ToArray()
                 where !situation.ExpectedProofs.SequenceEqual(actualProofs)
                 select new 
                 { 
-                    Description = situation.Description,
+                    situation.Description,
                     Facts = Dump(situation.Facts), 
                     Query = Dump(situation.Query), 
                     ExpectedProofs = Dump(situation.ExpectedProofs), 
@@ -114,7 +114,7 @@ namespace Prolog.Tests
                 select new 
                 { 
                     Prorgam = Dump(situation.Program, Environment.NewLine), 
-                    Query = situation.Query, 
+                    situation.Query, 
                     ExpectedProofs = Dump(situation.ExpectedProofs), 
                     ActualProofs = Dump(actualProofs) 
                 })
@@ -283,7 +283,7 @@ namespace Prolog.Tests
 
             var erroneousProofs = 
                 (from situation in situations
-                let expectedProofs = situation.ExpectedSolutions.Select(vi => new UnificationResult(true, vi)).ToArray()
+                let expectedProofs = situation.ExpectedSolutions.Select(Unification.Success).ToArray()
                 let actualProofs = Proof.Find(situation.Program, situation.Query).ToArray()
                 where !expectedProofs.SequenceEqual(actualProofs)
                 select new 
@@ -332,7 +332,7 @@ namespace Prolog.Tests
 
             var erroneousProofs = 
                 (from situation in situations
-                let expectedProofs = situation.ExpectedSolutions.Select(vi => new UnificationResult(true, vi)).ToArray()
+                let expectedProofs = situation.ExpectedSolutions.Select(Unification.Success).ToArray()
                 let actualProofs = Proof.Find(situation.Program, situation.Query).ToArray()
                 where !expectedProofs.SequenceEqual(actualProofs)
                 select new 
@@ -401,7 +401,7 @@ namespace Prolog.Tests
 
             var erroneousProofs = 
                 (from situation in situations
-                let expectedProofs = situation.ExpectedSolutions.Select(vi => new UnificationResult(true, vi)).ToArray()
+                let expectedProofs = situation.ExpectedSolutions.Select(Unification.Success).ToArray()
                 let actualProofs = Proof.Find(Array.Empty<Rule>(), situation.Query).ToArray()
                 where !expectedProofs.SequenceEqual(actualProofs)
                 select new 
@@ -454,7 +454,7 @@ namespace Prolog.Tests
 
             var erroneousProofs = 
                 (from situation in situations
-                let expectedProofs = situation.ExpectedSolutions.Select(vi => new UnificationResult(true, vi)).ToArray()
+                let expectedProofs = situation.ExpectedSolutions.Select(Unification.Success).ToArray()
                 let actualProofs = Proof.Find(situation.Program, situation.Query).ToArray()
                 where !expectedProofs.SequenceEqual(actualProofs)
                 select new 
@@ -472,7 +472,7 @@ namespace Prolog.Tests
         [ClassInitialize]
         public static void SetupLogging(TestContext? testContext)
         {
-            TraceFilePath = Path.Combine(testContext?.TestLogsDir ?? Path.GetTempPath(), "Prolog.trace");
+            _traceFilePath = Path.Combine(testContext?.TestLogsDir ?? Path.GetTempPath(), "Prolog.trace");
 
             Proof.ProofEvent += (description, nestingLevel, @this) =>
             {
@@ -481,24 +481,24 @@ namespace Prolog.Tests
                 //     return;
                 // }
 
-                File.AppendAllText(TraceFilePath, new string(' ', nestingLevel * 3));
+                File.AppendAllText(_traceFilePath, new string(' ', nestingLevel * 3));
 
                 if (description != null)
                 {
-                    File.AppendAllText(TraceFilePath, $"{description}: ");
+                    File.AppendAllText(_traceFilePath, $"{description}: ");
                 }
 
-                File.AppendAllText(TraceFilePath, Dump(@this));
-                File.AppendAllLines(TraceFilePath, new[] { string.Empty });
+                File.AppendAllText(_traceFilePath, Dump(@this));
+                File.AppendAllLines(_traceFilePath, new[] { string.Empty });
             };
         }
 
         [TestInitialize]
         public void Setup()
         {
-            File.Delete(TraceFilePath!);
+            File.Delete(_traceFilePath!);
         }
 
-        private static string? TraceFilePath; 
+        private static string? _traceFilePath; 
    }
 }

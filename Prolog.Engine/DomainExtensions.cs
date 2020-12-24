@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Linq;
 
 namespace Prolog.Engine
@@ -5,13 +6,13 @@ namespace Prolog.Engine
     public static class DomainExtensions
     {
         public static UnificationResult InstantiatedTo(this Variable @this, Term term) =>
-            new UnificationResult(
-                Succeeded: true,
-                Instantiations: new StructuralEquatableDictionary<Variable, Term> { [@this] = term });
+            Unification.Success(new Dictionary<Variable, Term> { [@this] = term });
 
         public static UnificationResult And(this UnificationResult @this, UnificationResult another)
         {
-            if (!(@this?.Succeeded ?? false) || !(another?.Succeeded ?? false))
+#pragma warning disable CA1062 // R# knows better            
+            if (!@this.Succeeded || !another.Succeeded)
+#pragma warning restore CA1062            
             {
                 return Unification.Failure;
             }
@@ -20,15 +21,12 @@ namespace Prolog.Engine
                         .Concat(another.Instantiations)
                         .GroupBy(i => i.Key)
                         .AggregateIfAll(
-                            new StructuralEquatableDictionary<Variable, Term>(),
+                            new Dictionary<Variable, Term>() as IDictionary<Variable, Term>,
                             variableInstantiations => variableInstantiations.All(i => i.Value.Equals(variableInstantiations.First().Value)),
-                            (accumulatedInstantiations, variableInstantiations) =>
-                            {
-                                accumulatedInstantiations.Add(variableInstantiations.First());
-                                return accumulatedInstantiations;
-                            });
+                            (accumulatedInstantiations, variableInstantiations) => 
+                                accumulatedInstantiations.AddAndReturnSelf(variableInstantiations.First()));
 
-            return success ? new UnificationResult(true, result) : Unification.Failure;
+            return success ? Unification.Success(result) : Unification.Failure;
         }
     }
 }

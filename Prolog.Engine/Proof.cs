@@ -15,7 +15,7 @@ namespace Prolog.Engine
             var queryVariableNames = ListAllMentionedVariableNames(queries);
             return FindCore(
                         Builtin.Rules.Concat(programRules).ToArray(), 
-                        ImmutableList.Create<ComplexTerm>(queries),
+                        ImmutableList.Create(queries),
                         ImmutableHashSet.CreateRange(queryVariableNames),
                         ImmutableDictionary.Create<Variable, Term>(),
                         useCutMode: queries.Contains(Cut),
@@ -37,9 +37,7 @@ namespace Prolog.Engine
         {
             if (!queries.Any())
             {
-                yield return new UnificationResult(
-                    Succeeded: true, 
-                    Instantiations: new StructuralEquatableDictionary<Variable, Term>(variableInstantiations));
+                yield return Unification.Success(variableInstantiations);
             }
             else
             {
@@ -72,7 +70,7 @@ namespace Prolog.Engine
                         var ruleWithRenamedVariables = RenameRuleVariablesToMakeThemDifferentFromAlreadyUsedNames(matchingRule, mentionedVariableNames);
                         var ruleConclusionUnificationResult = 
                             (ruleWithRenamedVariables.Conclusion == True
-                                ? Unification.Success
+                                ? Unification.Success()
                                 : Unification.CarryOut(currentQuery, ruleWithRenamedVariables.Conclusion))
                                 .Trace(nestingLevel, "ruleConclusionUnificationResult");
                         if (ruleConclusionUnificationResult.Succeeded)
@@ -83,7 +81,7 @@ namespace Prolog.Engine
                             var encounteredAtLeastOneProof = false;
                             foreach (var solution in FindCore(
                                 programRules, 
-                                ImmutableList.CreateRange<ComplexTerm>(updatedQueriesWithSubstitutedVariables),
+                                ImmutableList.CreateRange(updatedQueriesWithSubstitutedVariables),
                                 mentionedVariableNames.Union(ListAllMentionedVariableNames(ruleWithRenamedVariables.Premises)),
                                 variableInstantiations.AddRange(ruleConclusionUnificationResult.Instantiations),
                                 useCutMode: useCutMode || matchingRuleContainsCut,
@@ -117,7 +115,7 @@ namespace Prolog.Engine
             static IEnumerable<Rule> FindMatchingRules(IReadOnlyCollection<Rule> programRules, ComplexTerm query) =>
                 query.Functor switch 
                 {
-                    Functor functor => programRules.Where(rule => Unification.IsPossible(rule.Conclusion, query)),
+                    Functor => programRules.Where(rule => Unification.IsPossible(rule.Conclusion, query)),
                     BuiltinFunctor builtinFunctor => builtinFunctor.Invoke(query.Arguments) ? new[] { Rule(True) } : Enumerable.Empty<Rule>(),
                     _ => throw new InvalidOperationException($"Do not know how to handle {query.Functor} functor.")
                 };
@@ -126,42 +124,34 @@ namespace Prolog.Engine
             static Rule RenameRuleVariablesToMakeThemDifferentFromAlreadyUsedNames(Rule rule, IReadOnlySet<string> usedNames)
             {
                 var renamedVariables = new Dictionary<string, Variable>();
-                return new Rule(
-                    Conclusion: RenameComplexTermVariablesToMakeThemDifferentFromAlreadyUsedNames(rule.Conclusion, usedNames, renamedVariables),
-                    Premises: new StructuralEquatableArray<ComplexTerm>(
-                        rule.Premises.Select(
-                            ct => RenameComplexTermVariablesToMakeThemDifferentFromAlreadyUsedNames(ct, usedNames, renamedVariables))));
+                return Rule(
+                    conclusion: RenameComplexTermVariablesToMakeThemDifferentFromAlreadyUsedNames(rule.Conclusion, usedNames, renamedVariables),
+                    premises: rule.Premises.Select(
+                            ct => RenameComplexTermVariablesToMakeThemDifferentFromAlreadyUsedNames(ct, usedNames, renamedVariables)));
             }
 
             static ComplexTerm RenameComplexTermVariablesToMakeThemDifferentFromAlreadyUsedNames(
                 ComplexTerm complexTerm, 
                 IReadOnlySet<string> usedNames,
                 IDictionary<string, Variable> renamedVariables) =>
-                new ComplexTerm(
+                ComplexTerm(
                     complexTerm.Functor, 
-                    new StructuralEquatableArray<Term>(
-                        complexTerm.Arguments.Select(
-                            argument => argument switch
-                            {
-                                Variable v when v == _ => GenerateNewVariable(),
-                                Variable v when !usedNames.Contains(v.Name) => v,
-                                Variable v => renamedVariables.TryGetValue(v.Name, out var renamedVariable)
-                                        ? renamedVariable
-                                        : AddElement(renamedVariables, v.Name, GenerateNewVariable()),
-                                ComplexTerm ct => RenameComplexTermVariablesToMakeThemDifferentFromAlreadyUsedNames(ct, usedNames, renamedVariables),
-                                _ => argument
-                            }
-                        )));
-
-            static Variable AddElement(IDictionary<string, Variable> dictionary, string name, Variable variable)
-            {
-                dictionary.Add(name, variable);
-                return variable;
-            }
+                    complexTerm.Arguments.Select(
+                        argument => argument switch
+                        {
+                            Variable v when v == _ => GenerateNewVariable(),
+                            Variable v when !usedNames.Contains(v.Name) => v,
+                            Variable v => renamedVariables.TryGetValue(v.Name, out var renamedVariable)
+                                    ? renamedVariable
+                                    : renamedVariables.AddAndReturnValue(v.Name, GenerateNewVariable()),
+                            ComplexTerm ct => 
+                                    RenameComplexTermVariablesToMakeThemDifferentFromAlreadyUsedNames(ct, usedNames, renamedVariables),
+                            _ => argument
+                        }));
         }
 
         private static IReadOnlySet<string> ListAllMentionedVariableNames(IEnumerable<ComplexTerm> queries) =>
-            new HashSet<string>(queries.SelectMany(q => ListAllMentionedVariableNames(q)));
+            new HashSet<string>(queries.SelectMany(ListAllMentionedVariableNames));
 
         private static IEnumerable<string> ListAllMentionedVariableNames(ComplexTerm complexTerm) =>
             complexTerm.Arguments.SelectMany(
@@ -175,30 +165,29 @@ namespace Prolog.Engine
         private static ComplexTerm ApplyVariableInstantiations(
             ComplexTerm complexTerm, 
             IReadOnlyDictionary<Variable, Term> instantiations,
-            bool substituteUninstantiatedVariablesWith_ = false) =>
-            new ComplexTerm(
+            bool keepUninstantiatedVariables = true) =>
+            ComplexTerm(
                 complexTerm.Functor,
-                new StructuralEquatableArray<Term>(
-                    complexTerm.Arguments.Select(argument => ApplyVariableInstantiationsCore(argument, instantiations, substituteUninstantiatedVariablesWith_))));
+                complexTerm.Arguments.Select(argument => ApplyVariableInstantiationsCore(argument, instantiations, keepUninstantiatedVariables)));
 
         private static Term ApplyVariableInstantiationsCore(
             Term term, 
             IReadOnlyDictionary<Variable, Term> instantiations, 
-            bool substituteUninstantiatedVariablesWith_ = false) =>
+            bool keepUninstantiatedVariables = true) =>
             term switch
             {
-                Variable variable when substituteUninstantiatedVariablesWith_ && !instantiations.ContainsKey(variable) => _,
+                Variable variable when !(keepUninstantiatedVariables || instantiations.ContainsKey(variable)) => _,
                 Variable variable => !instantiations.TryGetValue(variable, out var value) 
                     ? term 
-                    : ApplyVariableInstantiationsCore(value, instantiations, substituteUninstantiatedVariablesWith_),
-                ComplexTerm complexTerm => ApplyVariableInstantiations(complexTerm, instantiations, substituteUninstantiatedVariablesWith_),
+                    : ApplyVariableInstantiationsCore(value, instantiations, keepUninstantiatedVariables),
+                ComplexTerm complexTerm => ApplyVariableInstantiations(complexTerm, instantiations, keepUninstantiatedVariables),
                 _ => term
             };
 
         private static UnificationResult ResolveInternalInstantiations(UnificationResult result, IReadOnlySet<string> variableNames) =>
             (result with 
             { 
-                Instantiations = new StructuralEquatableDictionary<Variable, Term>(
+                Instantiations = new (
                     result.Instantiations
                         .Where(it => variableNames.Contains(it.Key.Name))
                         .Select(it => KeyValuePair.Create(
@@ -206,12 +195,12 @@ namespace Prolog.Engine
                                         ApplyVariableInstantiationsCore(
                                             it.Value, 
                                             result.Instantiations, 
-                                            substituteUninstantiatedVariablesWith_: true)))
+                                            keepUninstantiatedVariables: false)))
                 )
             });
 
         private static Variable GenerateNewVariable() =>
-            new Variable(Name: $"_{++NextNewVariableIndex}", IsTemporary: true);
+            new (Name: $"_{++_nextNewVariableIndex}", IsTemporary: true);
 
         private static T Trace<T>(this T @this, int nestingLevel, string? description = null)
         {
@@ -219,6 +208,6 @@ namespace Prolog.Engine
             return @this;
         }
 
-        private static int NextNewVariableIndex;
+        private static int _nextNewVariableIndex;
     }
 }

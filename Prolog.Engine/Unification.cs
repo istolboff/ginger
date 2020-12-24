@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Linq;
 
 namespace Prolog.Engine
@@ -8,12 +9,12 @@ namespace Prolog.Engine
         {
             if (leftTerm is Atom leftAtom && rightTerm is Atom rightAtom)
             {
-                return new UnificationResult(Succeeded: leftAtom.Equals(rightAtom), Instantiations: NoInstantiations);
+                return new (Succeeded: leftAtom.Equals(rightAtom), Instantiations: NoInstantiations);
             }
 
             if (leftTerm is Number leftNumber && rightTerm is Number rightNumber)
             {
-                return new UnificationResult(Succeeded: leftNumber.Equals(rightNumber), Instantiations: NoInstantiations);
+                return new (Succeeded: leftNumber.Equals(rightNumber), Instantiations: NoInstantiations);
             }
 
             if (leftTerm is Variable leftVariable)
@@ -33,8 +34,9 @@ namespace Prolog.Engine
                     : leftComplexTerm.Arguments
                         .Zip(rightComplexTerm.Arguments)
                         .AggregateWhile(
-                            new UnificationResult(Succeeded: true, NoInstantiations),
-                            (result, correspondingArguments) => result.And(CarryOut(correspondingArguments.Item1, correspondingArguments.Item2)),
+                            Success(),
+                            (result, correspondingArguments) => 
+                                result.And(CarryOut(correspondingArguments.Item1, correspondingArguments.Item2)),
                             result => result.Succeeded);
             }
 
@@ -69,10 +71,14 @@ namespace Prolog.Engine
             return false;
        }
 
-        public static readonly UnificationResult Success = new UnificationResult(Succeeded: true, Instantiations: new StructuralEquatableDictionary<Variable, Term>());
+        public static UnificationResult Success() => 
+            new (Succeeded: true, Instantiations: NoInstantiations);
 
-        public static readonly UnificationResult Failure = new UnificationResult(Succeeded: false, Instantiations: new StructuralEquatableDictionary<Variable, Term>());
+        public static UnificationResult Success(IEnumerable<KeyValuePair<Variable, Term>> variableInstantiations) => 
+            new (Succeeded: true, Instantiations: new(variableInstantiations));
 
-        private static readonly StructuralEquatableDictionary<Variable, Term> NoInstantiations = new ();
+        public static readonly UnificationResult Failure = new (Succeeded: false, Instantiations: NoInstantiations);
+
+        private static StructuralEquatableDictionary<Variable, Term> NoInstantiations => new ();
     }
 }

@@ -5,6 +5,7 @@ namespace Prolog.Tests
 {
     internal static class StockTerms
     {
+        // ReSharper disable InconsistentNaming
         public static readonly ComplexTermFactory f = MakeComplexTerm("f");
         public static readonly ComplexTermFactory g = MakeComplexTerm("g");
         public static readonly ComplexTermFactory h = MakeComplexTerm("h");
@@ -70,5 +71,6 @@ namespace Prolog.Tests
 
         private static ComplexTermFactory MakeComplexTerm(string functorName) => 
             arguments => ComplexTerm(Functor(functorName, arguments.Length), arguments);
+        // ReSharper enable InconsistentNaming
     }
 }
