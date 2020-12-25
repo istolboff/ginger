@@ -7,9 +7,9 @@ namespace Prolog.Engine
     {
         public static UnificationResult And(this UnificationResult @this, UnificationResult another)
         {
-#pragma warning disable CA1062 // R# knows better            
+#pragma warning disable CA1062 // R# knows better
             if (!@this.Succeeded || !another.Succeeded)
-#pragma warning restore CA1062            
+#pragma warning restore CA1062
             {
                 return Unification.Failure;
             }

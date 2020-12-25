@@ -20,6 +20,26 @@ namespace Prolog.Engine
 
         public static readonly Functor CallFunctor = Functor("call", 1);
 
+        public static readonly ComplexTermFactory Equal = StandardOperator(
+            "=", 
+            (left, right) => 
+                left switch 
+                {
+                    Number n1 when right is Number n2 => n1.Value == n2.Value,
+                    Atom a1 when right is Atom a2 => string.Compare(a1.Characters, a2.Characters, StringComparison.OrdinalIgnoreCase) == 0,
+                    _ => false
+                });
+
+        public static readonly ComplexTermFactory NotEqual = StandardOperator(
+            @"\=", 
+            (left, right) => 
+                left switch 
+                {
+                    Number n1 when right is Number n2 => n1.Value != n2.Value,
+                    Atom a1 when right is Atom a2 => string.Compare(a1.Characters, a2.Characters, StringComparison.OrdinalIgnoreCase) != 0,
+                    _ => false
+                });
+
         public static readonly ComplexTermFactory GreaterThanOrEqual = StandardOperator(
             ">=", 
             (left, right) => 

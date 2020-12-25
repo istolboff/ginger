@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Prolog.Engine;
@@ -367,39 +366,106 @@ namespace Prolog.Tests
                 )
             });
         }
+
+        [TestMethod]
+        public void SolvingVolfGoatCabbageRiddle()
+        {
+            var amocwm = atMostOneCreatureWasMoved(List(A, B, C), List(A1, B1, C1), NewFarmerPosition);
+            var sao = sidesAreOk(FarmerPosition, WolfPosition, GoatPosition, CabbagePosition);
+            CheckSituations(new[] 
+            {
+                (
+                    Description: "Finding a solution for the Volf-Goat-Cabbage crossing the river riddle",
+                    Program: new[] 
+                    {
+                        Fact(riverbank(right)),
+                        Fact(riverbank(left)),
+
+                        Rule(
+                            canMove(
+                                state(FarmerPosition, WolfPosition, GoatPosition, CabbagePosition),
+                                state(FarmerPosition1, WolfPosition1, GoatPosition1, CabbagePosition1)),
+                            riverbank(FarmerPosition1), 
+                            riverbank(WolfPosition1), 
+                            riverbank(GoatPosition1), 
+                            riverbank(CabbagePosition1),
+                            NotEqual(FarmerPosition1, FarmerPosition),
+                            atMostOneCreatureWasMoved(List(WolfPosition, GoatPosition, CabbagePosition), List(WolfPosition1, GoatPosition1, CabbagePosition1), FarmerPosition1),
+                            sidesAreOk(FarmerPosition1, WolfPosition1, GoatPosition1, CabbagePosition1)),
+
+
+                        Rule(amocwm, NotEqual(A, A1), Equal(B, B1), Equal(C, C1), Equal(NewFarmerPosition, A1)),
+                        Rule(amocwm, Equal(A, A1), NotEqual(B, B1), Equal(C, C1), Equal(NewFarmerPosition, B1)),
+                        Rule(amocwm, Equal(A, A1), Equal(B, B1), NotEqual(C, C1), Equal(NewFarmerPosition, C1)),
+                        Rule(amocwm, Equal(A, A1), Equal(B, B1), Equal(C, C1)),
+
+                        Rule(sao, NotEqual(WolfPosition, GoatPosition), NotEqual(GoatPosition, CabbagePosition)),
+                        Rule(sao, Equal(FarmerPosition, GoatPosition)),
+
+                        Rule(solve(State, Solution), depthfirst(EmptyList, State, Solution)),
+                            
+                        Fact(depthfirst(_, state(right, right, right, right), List(state(right, right, right, right)))),
+
+                        Rule(
+                            depthfirst(Path, State, Dot(State, Solution1)),
+                            canMove(State, State1),
+                            Not(Member(State1, Path)),
+                            depthfirst(Dot(State, Path), State1, Solution1))
+                    },
+                    Query: new[] { solve(state(left, left, left, left), Solution) },
+                    ExpectedSolutions: new[] 
+                    { 
+                        new V
+                        {
+                            [Solution] = List(
+                                state(left, left, left, left),
+                                state(right, left, right, left),
+                                state(left, left, right, left),
+                                state(right, right, right, left),
+                                state(left, right, left, left),
+                                state(right, right, left, right),
+                                state(left, right, left, right),
+                                state(right, right, right, right))
+                        }
+                    }
+                )
+            },
+            onlyFirstSolution: true);
+        }
  
         [ClassInitialize]
         public static void SetupLogging(TestContext? testContext)
         {
-            _traceFilePath = Path.Combine(testContext?.TestLogsDir ?? Path.GetTempPath(), "Prolog.trace");
+            _traceFilePath = System.IO.Path.Combine(testContext?.TestLogsDir ?? System.IO.Path.GetTempPath(), "Prolog.trace");
 
             Proof.ProofEvent += (description, nestingLevel, @this) =>
             {
-                File.AppendAllText(_traceFilePath, new string(' ', nestingLevel * 3));
+                System.IO.File.AppendAllText(_traceFilePath, new string(' ', nestingLevel * 3));
 
                 if (description != null)
                 {
-                    File.AppendAllText(_traceFilePath, $"{description}: ");
+                    System.IO.File.AppendAllText(_traceFilePath, $"{description}: ");
                 }
 
-                File.AppendAllText(_traceFilePath, Dump(@this));
-                File.AppendAllLines(_traceFilePath, new[] { string.Empty });
+                System.IO.File.AppendAllText(_traceFilePath, Dump(@this));
+                System.IO.File.AppendAllLines(_traceFilePath, new[] { string.Empty });
             };
         }
 
         [TestInitialize]
         public void Setup()
         {
-            File.Delete(_traceFilePath!);
+            System.IO.File.Delete(_traceFilePath!);
         }
 
         private static void CheckSituations(
-            IEnumerable<(string Description, Rule[] Program, ComplexTerm[] Query, V[] ExpectedProofs)> situations)
+            IEnumerable<(string Description, Rule[] Program, ComplexTerm[] Query, V[] ExpectedProofs)> situations,
+            bool onlyFirstSolution = false)
         {
             var erroneousProofs = 
                 (from situation in situations
                 let expectedProofs = situation.ExpectedProofs.Select(Unification.Success).ToArray()
-                let actualProofs = Proof.Find(situation.Program, situation.Query).ToArray()
+                let actualProofs = Proof.Find(situation.Program, situation.Query).Take(onlyFirstSolution ? 1 : int.MaxValue).ToArray()
                 where !expectedProofs.SequenceEqual(actualProofs)
                 select new 
                 { 
