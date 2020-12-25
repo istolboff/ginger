@@ -19,12 +19,12 @@ namespace Prolog.Engine
 
             if (leftTerm is Variable leftVariable)
             {
-                return leftVariable.InstantiatedTo(rightTerm);
+                return Success(leftVariable, rightTerm);
             }
 
             if (rightTerm is Variable rightVariable)
             {
-                return rightVariable.InstantiatedTo(leftTerm);
+                return Success(rightVariable, leftTerm);
             }
 
             if (leftTerm is ComplexTerm leftComplexTerm && rightTerm is ComplexTerm rightComplexTerm)
@@ -73,6 +73,9 @@ namespace Prolog.Engine
 
         public static UnificationResult Success() => 
             new (Succeeded: true, Instantiations: NoInstantiations);
+
+        public static UnificationResult Success(Variable variable, Term value) =>
+            Success(Enumerable.Repeat(KeyValuePair.Create(variable, value), 1));
 
         public static UnificationResult Success(IEnumerable<KeyValuePair<Variable, Term>> variableInstantiations) => 
             new (Succeeded: true, Instantiations: new(variableInstantiations));

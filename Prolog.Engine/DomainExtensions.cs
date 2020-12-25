@@ -5,9 +5,6 @@ namespace Prolog.Engine
 {
     public static class DomainExtensions
     {
-        public static UnificationResult InstantiatedTo(this Variable @this, Term term) =>
-            Unification.Success(new Dictionary<Variable, Term> { [@this] = term });
-
         public static UnificationResult And(this UnificationResult @this, UnificationResult another)
         {
 #pragma warning disable CA1062 // R# knows better            

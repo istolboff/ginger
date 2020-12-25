@@ -5,6 +5,8 @@ using Prolog.Engine;
 using static Prolog.Engine.DomainApi;
 using static Prolog.Tests.StockTerms;
 
+using V = System.Collections.Generic.Dictionary<Prolog.Engine.Variable, Prolog.Engine.Term>;
+
 namespace Prolog.Tests
 {
     [TestClass]
@@ -50,7 +52,7 @@ namespace Prolog.Tests
         [TestMethod]
         public void UnificationOfVariableWithAnotherVariable()
         {
-            Assert.IsTrue(X.InstantiatedTo(Y).Equals(Unification.CarryOut(Variable("X"), Variable("Y"))));
+            Assert.IsTrue(Unification.Success(X, Y).Equals(Unification.CarryOut(Variable("X"), Variable("Y"))));
         }
 
         // If term1 and term2 are complex terms, then they unify if and only if:
@@ -68,7 +70,7 @@ namespace Prolog.Tests
                 {
                     new 
                     {
-                        ExpectedUnification = X.InstantiatedTo(atom),
+                        ExpectedUnification = Unification.Success(X, atom),
                         TermPairs = new[]
                             {
                                 new[] { line(X), line(atom) },
@@ -80,7 +82,7 @@ namespace Prolog.Tests
 
                     new 
                     {
-                        ExpectedUnification = X.InstantiatedTo(atom).And(Y.InstantiatedTo(one)),
+                        ExpectedUnification = Unification.Success(new V { [X] = atom, [Y] = one }),
                         TermPairs = new[]
                             {
                                 new[] { line(X, one), line(atom, Y) },
@@ -93,7 +95,7 @@ namespace Prolog.Tests
 
                     new
                     {
-                        ExpectedUnification = X.InstantiatedTo(atom),
+                        ExpectedUnification = Unification.Success(X, atom),
                         TermPairs = new[]
                             {
                                 new[] { line(point(X)), line(point(atom)) },
@@ -109,7 +111,7 @@ namespace Prolog.Tests
 
                     new
                     {
-                        ExpectedUnification = X.InstantiatedTo(point(atom)),
+                        ExpectedUnification = Unification.Success(X, point(atom)),
                         TermPairs = new[]
                             {
                                 new[] { line(X), line(point(atom)) },
@@ -169,7 +171,7 @@ namespace Prolog.Tests
                 {
                     new 
                     { 
-                        ExpectedUnification = X.InstantiatedTo(X1).And(Y.InstantiatedTo(atom)).And(Z.InstantiatedTo(one)),
+                        ExpectedUnification = Unification.Success(new V { [X] = X1, [Y] = atom, [Z] = one }),
                         TermPair = (date(X, Y, one), date(X1, atom, Z))
                     },
                     new
