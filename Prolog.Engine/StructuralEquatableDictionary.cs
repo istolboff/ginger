@@ -19,9 +19,9 @@ namespace Prolog.Engine
 
         public TValue this[TKey key] => _dictionary[key];
 
-        IEnumerable<TKey> IReadOnlyDictionary<TKey, TValue>.Keys => _dictionary.Keys;
+        public IEnumerable<TKey> Keys => _dictionary.Keys;
 
-        IEnumerable<TValue> IReadOnlyDictionary<TKey, TValue>.Values => _dictionary.Values;
+        public IEnumerable<TValue> Values => _dictionary.Values;
 
         public int Count => _dictionary.Count;
 

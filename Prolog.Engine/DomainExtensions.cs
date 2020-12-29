@@ -1,15 +1,15 @@
 using System.Collections.Generic;
 using System.Linq;
 
+using static Prolog.Engine.MakeCompilerHappy;
+
 namespace Prolog.Engine
 {
     public static class DomainExtensions
     {
         public static UnificationResult And(this UnificationResult @this, UnificationResult another)
         {
-#pragma warning disable CA1062 // R# knows better
-            if (!@this.Succeeded || !another.Succeeded)
-#pragma warning restore CA1062
+            if (!SuppressCa1062(@this).Succeeded || !SuppressCa1062(another).Succeeded)
             {
                 return Unification.Failure;
             }
@@ -25,5 +25,8 @@ namespace Prolog.Engine
 
             return success ? Unification.Success(result) : Unification.Failure;
         }
+
+        public static bool IsList(this ComplexTerm @this) => 
+            SuppressCa1062(@this) == Builtin.EmptyList || SuppressCa1062(@this).Functor.Equals(Builtin.DotFunctor);
     }
 }

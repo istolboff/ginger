@@ -1,23 +1,32 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Prolog.Engine;
 using static Prolog.Engine.Builtin;
 using static Prolog.Engine.DomainApi;
 using static Prolog.Tests.StockTerms;
-using static Prolog.Tests.VerboseReporting;
 
 using V = System.Collections.Generic.Dictionary<Prolog.Engine.Variable, Prolog.Engine.Term>;
 
 namespace Prolog.Tests
 {
     [TestClass]
-    public class ProofTests
+    public class ProofTests : ProofTestsBase
     {
         [TestMethod]
         public void ProofBasedOnFactsOnly()
         {
+            CheckSituations(new[]
+            {
+                (
+                    Description: "Adhoc test",
+                    Program: System.Array.Empty<Rule>(),
+                    Query: new[] { Equal(FinalStateName, Atom("миссия заканчивается успехом")) },
+                    ExpectedProofs: new[] 
+                    { 
+                        new V { [FinalStateName] = Atom("миссия заканчивается успехом") }
+                    }
+                )
+            });
+
             CheckSituations(new[]
             {
                 (
@@ -95,242 +104,6 @@ namespace Prolog.Tests
         }
 
         [TestMethod]
-        public void RulesWithCut()
-        {
-            CheckSituations(new[]
-            {
-                (
-                    Description: "Program without Cut",
-                    Program: new[] 
-                        { 
-                            Fact(i(one)), 
-                            Fact(i(two)), 
-                            Fact(j(one)), 
-                            Fact(j(two)),
-                            Fact(j(three)),
-                            Rule(s(X, Y), q(X, Y)), 
-                            Fact(s(zero, zero)),
-                            Rule(q(X, Y), i(X), j(Y)) 
-                        },
-                    Query: new[] { s(X, Y) },
-                    ExpectedProofs: new[] 
-                    { 
-                        new V { [X] = one, [Y] = one },
-                        new V { [X] = one, [Y] = two },
-                        new V { [X] = one, [Y] = three },
-
-                        new V { [X] = two, [Y] = one },
-                        new V { [X] = two, [Y] = two },
-                        new V { [X] = two, [Y] = three },
-
-                        new V { [X] = zero, [Y] = zero }
-                    }
-                ),
-
-                (
-                    Description: "The same program as before, but this time with Cut",
-                    Program: new[] 
-                        { 
-                            Fact(i(one)), 
-                            Fact(i(two)), 
-                            Fact(j(one)), 
-                            Fact(j(two)),
-                            Fact(j(three)),
-                            Rule(s(X, Y), q(X, Y)), 
-                            Fact(s(zero, zero)),
-                            Rule(q(X, Y), i(X), Cut, j(Y)) 
-                        },
-                    Query: new[] { s(X, Y) },
-                    ExpectedProofs: new[] 
-                    { 
-                        new V { [X] = one, [Y] = one },
-                        new V { [X] = one, [Y] = two },
-                        new V { [X] = one, [Y] = three },
-
-                        new V { [X] = zero, [Y] = zero }
-                    }
-                ),
-
-                (
-                    Description: "Classical Max",
-                    Program: new[]
-                    {
-                        Rule(max(X, Y, X), GreaterThanOrEqual(X, Y), Cut),
-                        Rule(max(X, Y, Y), LessThan(X, Y)),
-                        Fact(number(one)),
-                        Fact(number(two)),
-                        Fact(number(three))
-                    },
-                    Query: new[] { number(X), number(Y), max(X, Y, X) },
-                    ExpectedProofs: new[] 
-                    {
-                        new V { [X] = one, [Y] = one },
-
-                        new V { [X] = two, [Y] = one },
-                        new V { [X] = two, [Y] = two },
-
-                        new V { [X] = three, [Y] = one },
-                        new V { [X] = three, [Y] = two },
-                        new V { [X] = three, [Y] = three }
-                    }
-                ),
-
-                (
-                    Description: "1st query from the 1st exercise from http://lpn.swi-prolog.org/lpnpage.php?pagetype=html&pageid=lpn-htmlse46",
-                    Program: new[] 
-                    {
-                        Fact(p(one)),
-                        Rule(p(two), Cut),
-                        Fact(p(three))
-                    },
-                    Query: new[] { p(X) },
-                    ExpectedProofs: new[] 
-                    {
-                        new V { [X] = one },
-                        new V { [X] = two }
-                    }
-                ),
-
-                (
-                    Description: "2nd query from the 1st exercise from http://lpn.swi-prolog.org/lpnpage.php?pagetype=html&pageid=lpn-htmlse46",
-                    Program: new[] 
-                    {
-                        Fact(p(one)),
-                        Rule(p(two), Cut),
-                        Fact(p(three))
-                    },
-                    Query: new[] { p(X), p(Y) },
-                    ExpectedProofs: new[] 
-                    {
-                        new V { [X] = one, [Y] = one },
-                        new V { [X] = one, [Y] = two },
-                        new V { [X] = two, [Y] = one },
-                        new V { [X] = two, [Y] = two }
-                    }
-                ),
-
-                (
-                    Description: "3rd query from the 1st exercise from http://lpn.swi-prolog.org/lpnpage.php?pagetype=html&pageid=lpn-htmlse46",
-                    Program: new[] 
-                    {
-                        Fact(p(one)),
-                        Rule(p(two), Cut),
-                        Fact(p(three))
-                    },
-                    Query: new[] { p(X), Cut, p(Y) },
-                    ExpectedProofs: new[] 
-                    {
-                        new V { [X] = one, [Y] = one },
-                        new V { [X] = one, [Y] = two }
-                    }
-                ),
-
-                (
-                    Description: "Fixed bug test",
-                    Program: new[]
-                    {
-                        Fact(p(two)),
-                        Fact(p(three)),
-                        Fact(q(one)),
-                        Fact(q(two)),
-                        Fact(q(three)),
-                        Rule(g(X), q(X), p(X), Cut),
-                        Rule(s(X), g(X))
-                    },
-                    Query: new[] { s(X) },
-                    ExpectedProofs: new[] 
-                    {
-                        new V { [X] = two }
-                    }
-                )
-            });
-        }
-
-        [TestMethod]
-        public void RulesWithNot()
-        {
-            CheckSituations(new[]
-            {
-                (
-                    Description: "Example from http://lpn.swi-prolog.org/lpnpage.php?pagetype=html&pageid=lpn-htmlse45",
-                    Program: new[]
-                    {
-                        Rule(enjoys(vincent,X), burger(X), Not(big_kahuna_burger(X))),
-
-                        Rule(burger(X), big_mac(X)),
-                        Rule(burger(X), big_kahuna_burger(X)),
-                        Rule(burger(X), whopper(X)),
-
-                        Fact(big_mac(a)),
-                        Fact(big_kahuna_burger(b)),
-                        Fact(big_mac(c)),
-                        Fact(whopper(d))
-                    },
-                    Query: new[] { enjoys(vincent,X) },
-                    ExpectedProofs: new[] 
-                    {
-                        new V { [X] = a },
-                        new V { [X] = c },
-                        new V { [X] = d }
-                    }
-                )
-            });
-        }
-
-        [TestMethod]
-        public void WorkingWithLists()
-        {
-            CheckSituations(new[]
-            {
-                (
-                    Description: "Testing built-in member() functor",
-                    Program: Array.Empty<Rule>(),
-                    Query: new[] { Member(X, List(dudweiler,fahlquemont,forbach,freyming,metz,nancy,saarbruecken,stAvold)) },
-                    ExpectedSolutions: new[] 
-                    {
-                        new V { [X] = dudweiler },
-                        new V { [X] = fahlquemont },
-                        new V { [X] = forbach },
-                        new V { [X] = freyming },
-                        new V { [X] = metz },
-                        new V { [X] = nancy },
-                        new V { [X] = saarbruecken },
-                        new V { [X] = stAvold }                    
-                    }
-                ),
-
-                (
-                    Description: "Testing not(member(X, Y)) junction, checking the presence of an atom",
-                    Program: Array.Empty<Rule>(),
-                    Query: new[] 
-                    { 
-                        Not(Member(fahlquemont, List(dudweiler,metz,nancy,saarbruecken,stAvold)))
-                    },
-                    ExpectedSolutions: new[] 
-                    {
-                        new V()
-                    }
-                ),
-
-                (
-                    Description: "Testing not(member(X, Y)) junction, listing all possible proofs",
-                    Program: Array.Empty<Rule>(),
-                    Query: new[] 
-                    { 
-                        Member(X, List(dudweiler,fahlquemont,forbach,freyming,metz,nancy,saarbruecken,stAvold)),
-                        Not(Member(X, List(dudweiler,metz,nancy,saarbruecken,stAvold)))
-                    },
-                    ExpectedSolutions: new[] 
-                    {
-                        new V { [X] = fahlquemont },
-                        new V { [X] = forbach },
-                        new V { [X] = freyming }
-                    }
-                )
-            });
-        }
-
-        [TestMethod]
         public void RouteBuilding()
         {
             CheckSituations(new[]
@@ -368,7 +141,7 @@ namespace Prolog.Tests
         }
 
         [TestMethod]
-        public void SolvingVolfGoatCabbageRiddle()
+        public void SolvingVolfGoatCabbageRiddleUsingDepthFirstApproach()
         {
             var amocwm = atMostOneCreatureWasMoved(List(A, B, C), List(A1, B1, C1), NewFarmerPosition);
             var sao = sidesAreOk(FarmerPosition, WolfPosition, GoatPosition, CabbagePosition);
@@ -432,58 +205,242 @@ namespace Prolog.Tests
             },
             onlyFirstSolution: true);
         }
-
-#if UseLogging
-        [TestInitialize]
-        public void Setup()
+ 
+        [TestMethod]
+        public void SolvingVolfGoatCabbageRiddleUsingBreadthFirstApproach()
         {
-            System.IO.File.Delete(_traceFilePath!);
-        }
+            // while (!System.Diagnostics.Debugger.IsAttached) { System.Threading.Thread.Sleep(System.TimeSpan.FromSeconds(1)); }
 
-        [ClassInitialize]
-        public static void SetupLogging(TestContext? testContext)
-        {
-            _traceFilePath = System.IO.Path.Combine(testContext?.TestLogsDir ?? System.IO.Path.GetTempPath(), "Prolog.trace");
+            var program = new[] 
+                    {
+                        // % Сущности
+                        // % ========
 
-            Proof.ProofEvent += (description, nestingLevel, @this) =>
-            {
-                System.IO.File.AppendAllText(_traceFilePath, new string(' ', nestingLevel * 3));
+                        // % река имеет левый и правый берега
+                            Fact(берег(река, левый)),
+                            Fact(берег(река, правый)),
 
-                if (description != null)
+                        // % перевозимые существа это волк, коза и капуста 
+                            Fact(перевозимоеCущество(волк)),
+                            Fact(перевозимоеCущество(коза)),
+                            Fact(перевозимоеCущество(капуста)),
+
+
+                        // % Воздействия
+                        // % ===========
+
+                        // % Действие 'фермер перевозит перевозимое существо на другой берег' переводит из состояния 
+                        // % 'фермер и перевозимое существо находятся на одном берегу' в состояние 
+                        // % 'фермер и перевозимое существо находятся на другом берегу'.
+
+                        Rule(действие(
+                                перевозит(фермер, X, ОдинБерег, ДругойБерег), 
+                                фрагментСостояния(List(находится(фермер, ОдинБерег), находится(X, ОдинБерег))),
+                                фрагментСостояния(List(находится(фермер, ДругойБерег), находится(X, ДругойБерег)))),
+                            перевозимоеCущество(X),
+                            берег(река, ОдинБерег),
+                            берег(река, ДругойБерег),
+                            NotEqual(ОдинБерег, ДругойБерег)),
+
+
+                        // % Действие 'фермер переправляется на другой берег' переводит из состояния 
+                        // % 'фермер находится на одном берегу' в состояние 
+                        // % 'фермер находится на другом берегу'.
+
+                        Rule(действие(
+                                переправляется(фермер, ОдинБерег, ДругойБерег),
+                                фрагментСостояния(List(находится(фермер, ОдинБерег))),
+                                фрагментСостояния(List(находится(фермер, ДругойБерег)))),
+                            берег(река, ОдинБерег),
+                            берег(река, ДругойБерег),
+                            NotEqual(ОдинБерег, ДругойБерег)),
+
+
+                        // % Граничные условия
+                        // % =================
+                        
+                        // % в момент начала миссии фермер, волк, коза и капуста находятся на левом берегу реки
+
+                        Fact(начальноеСостояние(
+                            List(находится(волк, левый),
+                                находится(коза, левый),
+                                находится(капуста, левый),
+                                находится(фермер, левый)))),
+
+
+                        // % Правила
+                        // % =======
+
+                        // % если волк и коза находятся на одном берегу реки, а фермер находится на другом берегу реки,
+                        // % то миссия заканчивается неудачей с формулировкой 'волк съел козу'
+
+                        Rule(конечноеСостояние(
+                            Atom("волк съел козу"),                          
+                            List(
+                                находится(волк, ОдинБерег),
+                                находится(коза, ОдинБерег),
+                                находится(фермер, ДругойБерег))),
+                            берег(река, ОдинБерег),
+                            берег(река, ДругойБерег),
+                            NotEqual(ОдинБерег, ДругойБерег)),
+
+                        // % если коза и капуста находятся на одном берегу реки, а фермер находится на другом берегу реки,
+                        // % то миссия заканчивается неудачей с формулировкой 'коза съела капусту'
+
+                        Rule(конечноеСостояние(
+                            Atom("коза съела капусту"),
+                            List(
+                                находится(коза, ОдинБерег),
+                                находится(капуста, ОдинБерег),
+                                находится(фермер, ДругойБерег))),
+                            берег(река, ОдинБерег),
+                            берег(река, ДругойБерег),
+                            NotEqual(ОдинБерег, ДругойБерег)),
+
+                        // % если волк, коза и капуста находятся на правом берегу реки, то миссия заканчивается успехом
+
+                        Fact(конечноеСостояние(
+                            Atom("миссия заканчивается успехом"),
+                            List(
+                                находится(волк, правый),
+                                находится(коза, правый),
+                                находится(капуста, правый),
+                                находится(фермер, правый)))),
+
+
+                        // % Стандартные предикаты для поиска путей в пространстве состояний.
+
+                        Rule(выполнимо(ТекущееПолноеСостояние, Действие, ФрагментСостоянияДо, ФрагментСостоянияПосле, ПолноеСостояниеПосле),
+                            действие(Действие, фрагментСостояния(ФрагментСостоянияДо), фрагментСостояния(ФрагментСостоянияПосле)),
+                            Subset(ФрагментСостоянияДо, ТекущееПолноеСостояние),
+                            Subtract(ТекущееПолноеСостояние, ФрагментСостоянияДо, Y),
+                            Append(Y, ФрагментСостоянияПосле, Z),
+                            Sort(Z, ПолноеСостояниеПосле)),
+
+                        Rule(unwantedFinalState(ExpectedFinalStateName, CurrentState),
+                            конечноеСостояние(X, ConcreteFinalState),
+                            NotEqual(X, ExpectedFinalStateName),
+                            Subset(ConcreteFinalState, CurrentState)),
+
+                        Rule(solve(InitialState, FinalStateName, FinalState, Solution),
+                            Sort(InitialState, SortedInitialState),
+                            Sort(FinalState, SortedFinalState),
+                            breadthFirst(List(SortedInitialState), EmptyList, SortedFinalState, FinalStateName, Result), 
+                            Flatten(Result, FlattenedResult),
+                            listFullFinalStates(FinalState, FlattenedResult, MatchingFullFinalStates),
+                            buildPath(SortedInitialState, MatchingFullFinalStates, FlattenedResult, ReversedPath),
+                            Reverse(ReversedPath, Solution)),
+
+                        Rule(breadthFirst(EmptyList, _, _, _, _), 
+                            Fail),
+
+                        Rule(breadthFirst(Dot(Finish, _), _, FinishSubset, _, EmptyList),
+                            Subset(FinishSubset, Finish)),
+
+                        Rule(breadthFirst(Dot(H, QueueAdded), QueueProcessed, Finish, FinalStateName, List(ConnectingEdges, Res)), 
+                            adjacentNodes(H, FinalStateName, Adjacents),
+                            dictionaryRemoveKeys(Adjacents, QueueAdded, Temp1),
+                            dictionaryRemoveKeys(Temp1, QueueProcessed, Temp2),
+                            buildConnectingEdges(H, Temp2, ConnectingEdges),
+                            dictionaryKeys(Temp2, StatesReachableIn1Step),
+                            Append(QueueAdded, StatesReachableIn1Step, ExtendedQueueAdded),
+                            breadthFirst(ExtendedQueueAdded, Dot(H, QueueProcessed), Finish, FinalStateName, Res)),
+
+                        Rule(adjacentNodes(H, FinalStateName, Adjacents),
+                            FindAll(pair(NewState, Action), canMoveToNewState(H, FinalStateName, NewState, Action), Adjacents)),
+
+                        Rule(canMoveToNewState(State, FinalStateName, State1, Действие),
+                            выполнимо(State, Действие, _, _, State1),
+                            Not(unwantedFinalState(FinalStateName, State1))),
+
+                        Fact(buildConnectingEdges(_, EmptyList, EmptyList)),
+                        Rule(buildConnectingEdges(From, Dot(pair(To, Action), Tail), Dot(pair(edge(From, To), Action), Result)),
+                            buildConnectingEdges(From, Tail, Result)),
+
+                        Rule(buildPath(Start, FullFinalStates, Edges, List(pair(edge(Start, Finish), Action))),
+                            Member(Finish, FullFinalStates),
+                            Member(pair(edge(Start, Finish), Action), Edges)),
+                        Rule(buildPath(Start, FullFinalStates, Edges, Dot(pair(edge(X, Finish), Action), Path)),
+                            Member(Finish, FullFinalStates),
+                            Member(pair(edge(X, Finish), Action), Edges),
+                            buildPath1(Start, X, Edges, Path)),
+
+                        Rule(buildPath1(Start, Finish, Edges, List(pair(edge(Start, Finish), Action))),
+                            Member(pair(edge(Start, Finish), Action), Edges)),
+                        Rule(buildPath1(Start, Finish, Edges, Dot(pair(edge(X, Finish), Action), Path)),
+                            Member(pair(edge(X, Finish), Action), Edges),
+                            buildPath1(Start, X, Edges, Path)),
+
+                        Rule(listFullFinalStates(FinalState, Dot(pair(edge(_, Finish), _), Edges), Dot(Finish, Result)),
+                            Subset(FinalState, Finish),
+                            listFullFinalStates(FinalState, Edges, Result),
+                            Cut),
+                        Rule(listFullFinalStates(FinalState, Dot(_, Edges), Result),
+                            listFullFinalStates(FinalState, Edges, Result)),
+                        Fact(listFullFinalStates(_, EmptyList, EmptyList)),
+
+
+                        Rule(dictionaryKeys(Dot(pair(Key, _), Dictionary), Dot(Key, Keys)),
+                            dictionaryKeys(Dictionary, Keys)),
+                        Fact(dictionaryKeys(EmptyList, EmptyList)),
+
+                        Rule(dictionaryValues(Dot(pair(_, Value), Dictionary), Dot(Value, Values)),
+                            dictionaryValues(Dictionary, Values)),
+                        Fact(dictionaryValues(EmptyList, EmptyList)),
+
+                        Rule(dictionaryRemoveKeys(Dot(pair(Key, _), Dictionary), Keys, Dictionary1),
+                            Member(Key, Keys), 
+                            dictionaryRemoveKeys(Dictionary, Keys, Dictionary1),
+                            Cut),
+                        Rule(dictionaryRemoveKeys(Dot(X, Dictionary), Keys, Dot(X, Dictionary1)),
+                            dictionaryRemoveKeys(Dictionary, Keys, Dictionary1)),
+                        Fact(dictionaryRemoveKeys(EmptyList, _, EmptyList))
+
+                        // % начальноеСостояние(InitialState)
+                        // % , FinalStateName = 'волк съел козу'
+                        // % , конечноеСостояние(FinalStateName, FinalState)
+                        // % , solve(InitialState, FinalStateName, FinalState, Solution)
+                        // % , dictionaryValues(Solution, Route)
+
+                        // % начальноеСостояние(InitialState)
+                        // % , FinalStateName = 'коза съела капусту'
+                        // % , конечноеСостояние(FinalStateName, FinalState)
+                        // % , solve(InitialState, FinalStateName, FinalState, Solution)
+                        // % , dictionaryValues(Solution, Route)                        
+                    };
+
+            CheckSituations(new[] 
                 {
-                    System.IO.File.AppendAllText(_traceFilePath, $"{description}: ");
-                }
-
-                System.IO.File.AppendAllText(_traceFilePath, Dump(@this));
-                System.IO.File.AppendAllLines(_traceFilePath, new[] { string.Empty });
-            };
+                    (
+                        Description: "Finding a solution for the Volf-Goat-Cabbage crossing the river riddle using breadth-first approach",
+                        Program: program,
+                        Query: new[] 
+                        { 
+                            начальноеСостояние(InitialState), 
+                            Equal(FinalStateName, Atom("миссия заканчивается успехом")), 
+                            конечноеСостояние(FinalStateName, FinalState), 
+                            solve(InitialState, FinalStateName, FinalState, Solution), 
+                            dictionaryValues(Solution, Route) 
+                        },
+                        ExpectedSolutions: new[] 
+                        {
+                            new V 
+                            { 
+                                [Route] = List(
+                                    перевозит(фермер, коза, левый, правый), 
+                                    переправляется(фермер, правый, левый), 
+                                    перевозит(фермер, волк, левый, правый), 
+                                    перевозит(фермер, коза, правый, левый), 
+                                    перевозит(фермер, капуста, левый, правый), 
+                                    переправляется(фермер, правый, левый), 
+                                    перевозит(фермер, коза, левый, правый)) 
+                            }
+                        }
+                    ),
+                },
+                ignoreUnlistedActualInstantiations: true);
         }
-#endif
 
-        private static void CheckSituations(
-            IEnumerable<(string Description, Rule[] Program, ComplexTerm[] Query, V[] ExpectedProofs)> situations,
-            bool onlyFirstSolution = false)
-        {
-            var erroneousProofs = 
-                (from situation in situations
-                let expectedProofs = situation.ExpectedProofs.Select(Unification.Success).ToArray()
-                let actualProofs = Proof.Find(situation.Program, situation.Query).Take(onlyFirstSolution ? 1 : int.MaxValue).ToArray()
-                where !expectedProofs.SequenceEqual(actualProofs)
-                select new 
-                { 
-                    situation.Description,
-                    Prorgam = Dump(situation.Program, Environment.NewLine), 
-                    Query = Dump(situation.Query),
-                    ExpectedProofs = Dump(expectedProofs), 
-                    ActualProofs = Dump(actualProofs) 
-                })
-                .ToList();
-
-            Assert.IsFalse(erroneousProofs.Any(), Environment.NewLine + string.Join(Environment.NewLine, erroneousProofs));
-        }
-
- #if UseLogging
-       private static string? _traceFilePath; 
-#endif
-   }
+        [ClassInitialize] public static void TestClassInitialize(TestContext? testContext) => SetupLogging(testContext);
+    }
 }

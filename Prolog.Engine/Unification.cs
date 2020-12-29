@@ -9,12 +9,12 @@ namespace Prolog.Engine
         {
             if (leftTerm is Atom leftAtom && rightTerm is Atom rightAtom)
             {
-                return new (Succeeded: leftAtom.Equals(rightAtom), Instantiations: NoInstantiations);
+                return Result(leftAtom.Equals(rightAtom));
             }
 
             if (leftTerm is Number leftNumber && rightTerm is Number rightNumber)
             {
-                return new (Succeeded: leftNumber.Equals(rightNumber), Instantiations: NoInstantiations);
+                return Result(leftNumber.Equals(rightNumber));
             }
 
             if (leftTerm is Variable leftVariable)
@@ -69,10 +69,13 @@ namespace Prolog.Engine
             }
 
             return false;
-       }
+        }
+
+        public static UnificationResult Result(bool succeeded) => 
+            new (Succeeded: succeeded, Instantiations: new ());
 
         public static UnificationResult Success() => 
-            new (Succeeded: true, Instantiations: NoInstantiations);
+            Result(true);
 
         public static UnificationResult Success(Variable variable, Term value) =>
             Success(Enumerable.Repeat(KeyValuePair.Create(variable, value), 1));
@@ -80,8 +83,6 @@ namespace Prolog.Engine
         public static UnificationResult Success(IEnumerable<KeyValuePair<Variable, Term>> variableInstantiations) => 
             new (Succeeded: true, Instantiations: new(variableInstantiations));
 
-        public static readonly UnificationResult Failure = new (Succeeded: false, Instantiations: NoInstantiations);
-
-        private static StructuralEquatableDictionary<Variable, Term> NoInstantiations => new ();
+        public static readonly UnificationResult Failure = Result(false);
     }
 }

@@ -33,15 +33,57 @@ namespace Prolog.Engine
             new (conclusion, new (premises));
 
         public static ComplexTerm List(params Term[] elements) => 
-            elements.Reverse().Aggregate(EmptyList, (list, element) => Dot(element, list));
+            List(elements.Reverse());
 
-        internal static ComplexTermFactory StandardBinaryOperator(string operatorName, Func<Term, Term, bool> invoke) =>
+        public static ComplexTerm List(IEnumerable<Term> elements) => 
+            elements.Aggregate(EmptyList, (list, element) => Dot(element, list));
+
+        public static IEnumerable<Term> IterableList(ComplexTerm list)
+        {
+            for (var current = list; 
+                 current != null && current.IsList() && current != EmptyList; 
+                 current = current.Arguments[1] as ComplexTerm)
+            {
+                yield return current.Arguments[0];
+            }
+        }
+
+        internal static ComplexTermFactory StandardPredicate(string operatorName, Func<Term, Term, UnificationResult> invoke) =>
             formalArguments => ComplexTerm(
-                new BinaryOperator(
+                new BinaryPredicate(
                     operatorName, 
                     2, 
                     arguments => invoke(arguments[0], arguments[1])),
                 formalArguments);
 
+        internal static ComplexTermFactory StandardPredicate(string operatorName, Func<Term, Term, Term, UnificationResult> invoke) =>
+            formalArguments => ComplexTerm(
+                new BinaryPredicate(
+                    operatorName, 
+                    3, 
+                    arguments => invoke(arguments[0], arguments[1], arguments[2])),
+                formalArguments);
+
+        internal static ComplexTermFactory MetaPredicate(string operatorName, Func<IReadOnlyCollection<Rule>, Term, Term, Term, UnificationResult> invoke) =>
+            formalArguments => ComplexTerm(
+                new MetaFunctor(
+                    operatorName, 
+                    3, 
+                    (program, arguments) => invoke(program, arguments[0], arguments[1], arguments[2])),
+                formalArguments);
+
+        internal static ComplexTerm ReverseList(ComplexTerm list) =>
+            List(IterableList(list));
+
+        internal static IEnumerable<Term> FlattenList(ComplexTerm list) =>
+            IterableList(list)
+                .SelectMany(item => item switch
+                {
+                    ComplexTerm complexTerm when complexTerm.IsList() => FlattenList(complexTerm),
+                    _ => new[] { item }
+                });
+
+        internal static Exception TypeError(string message) => 
+            new InvalidOperationException(message);
    }
 }

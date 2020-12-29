@@ -10,11 +10,14 @@ namespace Prolog.Engine
 {
     public static class Proof
     {
-        public static IEnumerable<UnificationResult> Find(IReadOnlyCollection<Rule> programRules, params ComplexTerm[] queries)
+        public static IEnumerable<UnificationResult> Find(IReadOnlyCollection<Rule> programRules, params ComplexTerm[] queries) =>
+            FindCore(Builtin.Rules.Concat(programRules).AsImmutable(), queries);
+
+        internal static IEnumerable<UnificationResult> FindCore(IReadOnlyCollection<Rule> programRules, params ComplexTerm[] queries)
         {
             var queryVariableNames = ListAllMentionedVariableNames(queries);
             return FindCore(
-                        programRules: Builtin.Rules.Concat(programRules).ToArray(), 
+                        programRules: programRules, 
                         queries: ImmutableList.Create(queries),
                         mentionedVariableNames: ImmutableHashSet.CreateRange(queryVariableNames),
                         variableInstantiations: ImmutableDictionary.Create<Variable, Term>(),
@@ -65,12 +68,14 @@ namespace Prolog.Engine
                         ? UnwrapCall(currentQueryRaw, variableInstantiations) 
                         : currentQueryRaw;
                     var matchingRules = FindMatchingRules(programRules, currentQuery);
+                    var extendedSetOfMentionedVariableNames = mentionedVariableNames.Union(variableInstantiations.Select(vi => vi.Key.Name));
                     foreach (var matchingRule in matchingRules.Trace(nestingLevel, "matching rules"))
                     {
-                        var ruleWithRenamedVariables = RenameRuleVariablesToMakeThemDifferentFromAlreadyUsedNames(matchingRule, mentionedVariableNames);
+                        var ruleWithRenamedVariables = RenameRuleVariablesToMakeThemDifferentFromAlreadyUsedNames(matchingRule, extendedSetOfMentionedVariableNames).Trace(nestingLevel, "ruleWithRenamedVariables");
                         var ruleConclusionUnificationResult = ruleWithRenamedVariables.Conclusion.Functor switch 
                             {
-                                BinaryOperator binaryOperator => binaryOperator.Invoke(currentQuery.Arguments) ? Unification.Success() : Unification.Failure,
+                                BinaryPredicate binaryOperator => binaryOperator.Invoke(currentQuery.Arguments),
+                                MetaFunctor metaFunctor => metaFunctor.Invoke(programRules, currentQuery.Arguments),
                                 _ => Unification.CarryOut(currentQuery, ruleWithRenamedVariables.Conclusion)
                             };
                         if (ruleConclusionUnificationResult.Trace(nestingLevel, "ruleConclusionUnificationResult").Succeeded)
@@ -82,7 +87,7 @@ namespace Prolog.Engine
                             foreach (var solution in FindCore(
                                 programRules, 
                                 ImmutableList.CreateRange(updatedQueriesWithSubstitutedVariables),
-                                mentionedVariableNames.Union(ListAllMentionedVariableNames(ruleWithRenamedVariables.Premises)),
+                                extendedSetOfMentionedVariableNames.Union(ListAllMentionedVariableNames(ruleWithRenamedVariables.Premises)),
                                 variableInstantiations.AddRange(ruleConclusionUnificationResult.Instantiations),
                                 useCutMode: useCutMode || matchingRuleContainsCut,
                                 nestingLevel: nestingLevel + 1))
@@ -164,7 +169,7 @@ namespace Prolog.Engine
                 complexTerm.Functor,
                 complexTerm.Arguments.Select(argument => ApplyVariableInstantiationsCore(argument, instantiations, keepUninstantiatedVariables)));
 
-        private static Term ApplyVariableInstantiationsCore(
+        internal static Term ApplyVariableInstantiationsCore(
             Term term, 
             IReadOnlyDictionary<Variable, Term> instantiations, 
             bool keepUninstantiatedVariables = true) =>

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using static Prolog.Engine.DomainApi;
 
 namespace Prolog.Engine
@@ -18,48 +19,135 @@ namespace Prolog.Engine
 
         public static readonly Functor CallFunctor = Functor("call", 1);
 
-        public static readonly ComplexTermFactory Equal = StandardBinaryOperator(
+        public static readonly ComplexTermFactory Equal = StandardPredicate(
             "=", 
-            (left, right) => 
-                left switch 
-                {
-                    Number n1 when right is Number n2 => n1.Value == n2.Value,
-                    Atom a1 when right is Atom a2 => string.Compare(a1.Characters, a2.Characters, StringComparison.OrdinalIgnoreCase) == 0,
-                    _ => false
-                });
+            (left, right) => Unification.CarryOut(left, right));
 
-        public static readonly ComplexTermFactory NotEqual = StandardBinaryOperator(
+        public static readonly ComplexTermFactory NotEqual = StandardPredicate(
             @"\=", 
-            (left, right) => 
-                left switch 
-                {
-                    Number n1 when right is Number n2 => n1.Value != n2.Value,
-                    Atom a1 when right is Atom a2 => string.Compare(a1.Characters, a2.Characters, StringComparison.OrdinalIgnoreCase) != 0,
-                    _ => false
-                });
+            (left, right) => Unification.Result(!Unification.CarryOut(left, right).Succeeded));
 
-        public static readonly ComplexTermFactory GreaterThanOrEqual = StandardBinaryOperator(
+        public static readonly ComplexTermFactory GreaterThan = StandardPredicate(
+            ">",
+            (left, right) => Unification.Result(StandardOrderOfTerms.Default.Compare(left, right) > 0));
+
+        public static readonly ComplexTermFactory GreaterThanOrEqual = StandardPredicate(
             ">=", 
-            (left, right) => 
-                left switch 
+            (left, right) => Unification.Result(StandardOrderOfTerms.Default.Compare(left, right) >= 0));
+
+        public static readonly ComplexTermFactory LessThan = StandardPredicate(
+            "<", 
+            (left, right) => Unification.Result(StandardOrderOfTerms.Default.Compare(left, right) < 0));
+
+        public static readonly ComplexTermFactory LessThanOrEqual = StandardPredicate(
+            "<", 
+            (left, right) => Unification.Result(StandardOrderOfTerms.Default.Compare(left, right) <= 0));
+
+        public static readonly ComplexTermFactory Subset = StandardPredicate(
+            "subset",
+            (subset, set) =>
+                (subset, set) switch 
                 {
-                    Number n1 when right is Number n2 => n1.Value >= n2.Value,
-                    Atom a1 when right is Atom a2 => string.Compare(a1.Characters, a2.Characters, StringComparison.OrdinalIgnoreCase) >= 0,
-                    _ => false
+                    (ComplexTerm subList, ComplexTerm list) when subList.IsList() && list.IsList() => 
+                        IterableList(subList)
+                            .AggregateWhile(
+                                (UnificationResult: Unification.Success(), 
+                                 MatchedElements: new HashSet<Term>(ReferenceEqualityComparer<Term>.Default)),
+                                (state, listElement) => 
+                                    IterableList(list)
+                                        .TryFirst(t => 
+                                            !state.MatchedElements.Contains(t) && 
+                                            Unification.IsPossible(listElement, t))
+                                        .Map(matchingTerm => 
+                                            (state.UnificationResult.And(Unification.CarryOut(listElement, matchingTerm)),
+                                             state.MatchedElements.AddAndReturnSelf(matchingTerm)))
+                                        .OrElse(() => (Unification.Failure, state.MatchedElements)),
+                                state => state.UnificationResult.Succeeded)
+                            .UnificationResult,
+                    _ => throw TypeError("both parameters of 'subset' predicate should be lists")
                 });
 
-        public static readonly ComplexTermFactory LessThan = StandardBinaryOperator(
-            "<", 
-            (left, right) => 
-                left switch 
+        public static readonly ComplexTermFactory Subtract = StandardPredicate(
+            "subtract",
+            (set, delete, result) => 
+                (set, delete, result) switch 
                 {
-                    Number n1 when right is Number n2 => n1.Value < n2.Value,
-                    Atom a1 when right is Atom a2 => string.Compare(a1.Characters, a2.Characters, StringComparison.OrdinalIgnoreCase) < 0,
-                    _ => false
+                    (ComplexTerm setList, ComplexTerm deleteList, Variable resultList) when setList.IsList() && deleteList.IsList() =>
+                        IterableList(setList)
+                            .Aggregate(
+                                (UnificationResult: Unification.Success(), 
+                                 MatchedElements: new HashSet<Term>(ReferenceEqualityComparer<Term>.Default),
+                                 ResultingList: EmptyList),
+                                (state, term) => 
+                                    IterableList(deleteList)
+                                        .Where(t => !state.MatchedElements.Contains(t))
+                                        .Select(t => new { t, unification = Unification.CarryOut(term, t).And(state.UnificationResult) })
+                                        .TryFirst(it => it.unification.Succeeded)
+                                        .Map(it => (it.unification, state.MatchedElements.AddAndReturnSelf(it.t), state.ResultingList))
+                                        .OrElse(() => (state.UnificationResult, state.MatchedElements, Dot(term, state.ResultingList))))
+                                .Apply(state => Unification.Success(resultList, ReverseList(state.ResultingList))
+                                                .And(state.UnificationResult)),
+                    _ => throw TypeError("first and second parameters of 'subtract' predicate should be lists, and the third one should be a variable")
                 });
+
+        public static readonly ComplexTermFactory Append = StandardPredicate(
+            "append",
+            (set1, set2, set3) =>
+                (set1, set2, set3) switch 
+                {
+                    (ComplexTerm set1List, ComplexTerm set2List, Variable set3List) when set1List.IsList() && set2List.IsList() =>
+                        Unification.Success(set3List, List(IterableList(set1List).Concat(IterableList(set2List)).Reverse())),
+                    _ => throw TypeError("first and second parameters of 'union' predicate should be lists, and the third one should be a variable")
+                });
+
+        public static readonly ComplexTermFactory Sort = StandardPredicate(
+            "sort",
+            (list, sorted) =>
+                (list, sorted) switch
+                {
+                    (ComplexTerm listToSort, Variable sortedList) when listToSort.IsList() => 
+                        Unification.Success(
+                            sortedList, 
+                            List(IterableList(listToSort).OrderByDescending(it => it, StandardOrderOfTerms.Default))),
+                    _ => throw TypeError("first parameter of 'sort' predicate should be a list, and the second one should be a variable")
+                });
+
+        public static readonly ComplexTermFactory Flatten = StandardPredicate(
+            "flatten",
+            (nested, flat) =>
+                (nested, flat) switch
+                {
+                    (ComplexTerm nestedList, Variable flatList) when nestedList.IsList() =>
+                        Unification.Success(flatList, List(FlattenList(nestedList).Reverse())),
+                    _ => throw TypeError("first parameter of 'flatten' predicate should be a list, and the second one should be a variable")
+                });
+
+        public static readonly ComplexTermFactory Reverse = StandardPredicate(
+            "reverse",
+            (original, reversed) => 
+                (original, reversed) switch
+                {
+                    (ComplexTerm originalList, Variable reversedList) when originalList.IsList() =>
+                        Unification.Success(reversedList, List(IterableList(originalList))),
+                    _ => throw TypeError("first parameter of 'reverse' predicate should be a list, and the second one should be a variable")
+                }
+        );
+
+        public static readonly ComplexTermFactory FindAll = MetaPredicate( 
+            "findall", 
+            (program, obj, goal, list) =>
+            {
+                var (o, g, l) = (obj, (ComplexTerm)goal, (Variable)list);  
+                var solutions = Proof.FindCore(program, g).AsImmutable();
+                return Unification.Success(
+                    l, 
+                    !solutions.Any()
+                        ? EmptyList
+                        : List(solutions.Select(s => Proof.ApplyVariableInstantiationsCore(o, s.Instantiations)).ToArray()));
+            });
 
         public static ComplexTerm Dot(Term head, Term tail) =>
-            ComplexTerm(Functor(".", 2), head, tail);
+            ComplexTerm(DotFunctor, head, tail);
 
         public static ComplexTerm Member(Term element, Term list) =>
             ComplexTerm(Functor("member", 2), element, list);
@@ -67,27 +155,50 @@ namespace Prolog.Engine
         public static ComplexTerm Not(Term term) => 
             ComplexTerm(Functor("not", 1), term);
 
-        public static ComplexTerm FindAll() => 
-
         public static readonly IReadOnlyCollection<Rule> Rules = new[]
         {
-            // standard operators
-            Fact(Equal(X, Y)),
-            Fact(NotEqual(X, Y)),
-            Fact(GreaterThanOrEqual(X, Y)),
-            Fact(LessThan(X, Y)),
+            // standard comparison predicates
+            Introduce(Equal),
+            Introduce(NotEqual),
+            Introduce(GreaterThanOrEqual),
+            Introduce(LessThan),
+
+            // findall
+            Introduce(FindAll),
+
+            // list predicates
+            Introduce(Append),
+            Introduce(Flatten),
+            Introduce(Reverse),
+            Introduce(Sort),
+            Introduce(Subset),
+            Introduce(Subtract),
 
             // not()
             Rule(Not(X), Call(X), Cut, Fail),
             Fact(Not(_)),
 
             // member()
-            Fact(Member(X, Dot(X, _))),
+            Rule(Member(X, Dot(Y, _)), Equal(X, Y)),
             Rule(Member(X, Dot(_, T)), Member(X, T)),
         };
 
+        internal static Functor DotFunctor => 
+            Functor(".", 2);
+
         private static ComplexTerm Call(Term callee) =>
             ComplexTerm(CallFunctor, callee);
+
+        private static Rule Introduce(ComplexTermFactory factory) => 
+            new (
+                Conclusion: factory.Invoke().Functor.Arity switch 
+                    {
+                        2 => factory.Invoke(X, Y),
+                        3 => factory.Invoke(X, Y, T),
+                        _ => throw new NotImplementedException("Do not know how to introduce standard functor with artity different from 2 or 3")
+                    }, 
+                Premises: new ()
+            );
 
         // stock terms, usable for formulating built-in rules
         private static Variable X => Variable("X");
