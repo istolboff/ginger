@@ -67,6 +67,8 @@ namespace Prolog.Engine
         public static ComplexTerm Not(Term term) => 
             ComplexTerm(Functor("not", 1), term);
 
+        public static ComplexTerm FindAll() => 
+
         public static readonly IReadOnlyCollection<Rule> Rules = new[]
         {
             // standard operators

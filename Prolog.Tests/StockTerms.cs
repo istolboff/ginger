@@ -94,6 +94,9 @@ namespace Prolog.Tests
         public static readonly Number one = new (1);
         public static readonly Number two = new (2);
         public static readonly Number three = new (3);
+        public static readonly Number ten = new (10);
+        public static readonly Number twenty = new (20);
+        public static readonly Number thirty = new (30);
 
         private static ComplexTermFactory MakeComplexTerm(string functorName) => 
             arguments => ComplexTerm(Functor(functorName, arguments.Length), arguments);

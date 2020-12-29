@@ -278,7 +278,7 @@ namespace Prolog.Tests
         }
 
         [TestMethod]
-        public void ListTests()
+        public void WorkingWithLists()
         {
             CheckSituations(new[]
             {
@@ -433,13 +433,31 @@ namespace Prolog.Tests
             onlyFirstSolution: true);
         }
 
-#if UseLogging
-        [TestInitialize]
-        public void Setup()
+        [TestMethod]
+        public void TestingFindAll()
         {
-            System.IO.File.Delete(_traceFilePath!);
+            CheckSituations(new[]
+            {
+                (
+                    Description: "Regular findall() invocation",
+                    Program: new[]
+                    {
+                        Fact(edge(a, one)),
+                        Fact(edge(a, two)),
+                        Fact(edge(a, three)),
+                        Fact(edge(b, ten)),
+                        Fact(edge(b, twenty)),
+                        Fact(edge(b, thirty)),
+                    },
+                    Query: new[] { findall(X, edge(b, X), A) },
+                    ExpectedSolutions: new[] 
+                    {
+                        new V { [A] = List(ten, twenty, thirty) }
+                    }
+                )
+            });
         }
-
+ 
         [ClassInitialize]
         public static void SetupLogging(TestContext? testContext)
         {
