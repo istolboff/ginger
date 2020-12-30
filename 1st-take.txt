@@ -102,31 +102,99 @@
     sort(Z, ПолноеСостояниеПосле).
 
 unwantedFinalState(ExpectedFinalStateName, CurrentState) :-
-    конечноеСостояние(X, UnsortedState),
+    конечноеСостояние(X, ConcreteFinalState),
     X \= ExpectedFinalStateName,
-    sort(UnsortedState, CurrentState).
+    subset(ConcreteFinalState, CurrentState).
 
-solve(InitialState, FinalStateName, FinalState, Solution, Actions) :-
+solve(InitialState, FinalStateName, FinalState, Solution) :-
     sort(InitialState, SortedInitialState),
     sort(FinalState, SortedFinalState),
-    depthfirst([], SortedInitialState, FinalStateName, SortedFinalState, Solution, Actions).
-    
-depthfirst(_, SortedInitialState, _, FinalState, [SortedInitialState], []) :-
-    subset(FinalState, SortedInitialState).
+    breadthFirst([SortedInitialState], [], SortedFinalState, FinalStateName, Result), 
+	flatten(Result, FlattenedResult),
+    listFullFinalStates(FinalState, FlattenedResult, MatchingFullFinalStates),
+	buildPath(SortedInitialState, MatchingFullFinalStates, FlattenedResult, ReversedPath),
+    reverse(ReversedPath, Solution).
 
-depthfirst(Path, State, FinalStateName, FinalState, [State | Solution1], [Действие | AllActions]) :-
-    выполнимо(State, Действие, _, _, State1),
-    not(unwantedFinalState(FinalStateName, State1)),
-    not(member(State1, Path)),
-    depthfirst([State | Path], State1, FinalStateName, FinalState, Solution1, AllActions).
+breadthFirst([], _, _, _, _) :- 
+    fail.
 
+breadthFirst([Finish | _], _, FinishSubset, _, []) :- 
+    subset(FinishSubset, Finish).
+
+breadthFirst([H | QueueAdded], QueueProcessed, Finish, FinalStateName, [ConnectingEdges, Res]) :- 
+    adjacentNodes(H, FinalStateName, Adjacents),
+    dictionaryRemoveKeys(Adjacents, QueueAdded, Temp1),
+    dictionaryRemoveKeys(Temp1, QueueProcessed, Temp2),
+    buildConnectingEdges(H, Temp2, ConnectingEdges),
+    dictionaryKeys(Temp2, StatesReachableIn1Step),
+    append(QueueAdded, StatesReachableIn1Step, ExtendedQueueAdded),
+    breadthFirst(ExtendedQueueAdded, [H | QueueProcessed], Finish, FinalStateName, Res).
+
+adjacentNodes(H, FinalStateName, Adjacents) :-
+    findall(pair(NewState, Action), canMoveToNewState(H, FinalStateName, NewState, Action), Adjacents).
+
+canMoveToNewState(State, FinalStateName, State1, Действие) :-
+	выполнимо(State, Действие, _, _, State1),
+    not(unwantedFinalState(FinalStateName, State1)).
+
+buildConnectingEdges(_, [], []).
+buildConnectingEdges(From, [pair(To, Action) | Tail], [pair(edge(From, To), Action) | Result]) :- 
+    buildConnectingEdges(From, Tail, Result).
+
+buildPath(Start, FullFinalStates, Edges, [pair(edge(Start, Finish), Action)]) :-
+    member(Finish, FullFinalStates),
+    member(pair(edge(Start, Finish), Action), Edges).
+buildPath(Start, FullFinalStates, Edges, [pair(edge(X, Finish), Action) | Path]) :-
+    member(Finish, FullFinalStates),
+    member(pair(edge(X, Finish), Action), Edges),
+    buildPath1(Start, X, Edges, Path).
+
+buildPath1(Start, Finish, Edges, [pair(edge(Start, Finish), Action)]) :-
+    member(pair(edge(Start, Finish), Action), Edges).
+buildPath1(Start, Finish, Edges, [pair(edge(X, Finish), Action) | Path]) :-
+    member(pair(edge(X, Finish), Action), Edges),
+    buildPath1(Start, X, Edges, Path).
+
+listFullFinalStates(FinalState, [pair(edge(_, Finish), _) | Edges], [Finish | Result]) :-
+    subset(FinalState, Finish),
+    listFullFinalStates(FinalState, Edges, Result),
+    !.
+listFullFinalStates(FinalState, [_ | Edges], Result) :-
+    listFullFinalStates(FinalState, Edges, Result).
+listFullFinalStates(_, [], []).
+
+
+dictionaryKeys([pair(Key, _) | Dictionary], [Key | Keys]) :- 
+    dictionaryKeys(Dictionary, Keys).
+dictionaryKeys([], []).
+
+dictionaryValues([pair(_, Value) | Dictionary], [Value | Values]) :- 
+    dictionaryValues(Dictionary, Values).
+dictionaryValues([], []).
+
+dictionaryRemoveKeys([pair(Key, _) | Dictionary], Keys, Dictionary1) :- 
+    member(Key, Keys), 
+    dictionaryRemoveKeys(Dictionary, Keys, Dictionary1),
+    !.
+dictionaryRemoveKeys([X | Dictionary], Keys, [X | Dictionary1]) :- 
+    dictionaryRemoveKeys(Dictionary, Keys, Dictionary1).
+dictionaryRemoveKeys([], _, []).
+
+
+% начальноеСостояние(InitialState)
+% , FinalStateName = 'миссия заканчивается успехом'
+% , конечноеСостояние(FinalStateName, FinalState)
+% , solve(InitialState, FinalStateName, FinalState, Solution)
+% , dictionaryValues(Solution, Route)
 
 % начальноеСостояние(InitialState)
 % , FinalStateName = 'волк съел козу'
 % , конечноеСостояние(FinalStateName, FinalState)
-% , solve(InitialState, FinalStateName, FinalState, _, Actions)
+% , solve(InitialState, FinalStateName, FinalState, Solution)
+% , dictionaryValues(Solution, Route)
 
 % начальноеСостояние(InitialState)
 % , FinalStateName = 'коза съела капусту'
 % , конечноеСостояние(FinalStateName, FinalState)
-% , solve(InitialState, FinalStateName, FinalState, _, Actions)
+% , solve(InitialState, FinalStateName, FinalState, Solution)
+% , dictionaryValues(Solution, Route)
