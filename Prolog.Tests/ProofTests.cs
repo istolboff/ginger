@@ -432,7 +432,14 @@ namespace Prolog.Tests
             },
             onlyFirstSolution: true);
         }
- 
+
+#if UseLogging
+        [TestInitialize]
+        public void Setup()
+        {
+            System.IO.File.Delete(_traceFilePath!);
+        }
+
         [ClassInitialize]
         public static void SetupLogging(TestContext? testContext)
         {
@@ -451,12 +458,7 @@ namespace Prolog.Tests
                 System.IO.File.AppendAllLines(_traceFilePath, new[] { string.Empty });
             };
         }
-
-        [TestInitialize]
-        public void Setup()
-        {
-            System.IO.File.Delete(_traceFilePath!);
-        }
+#endif
 
         private static void CheckSituations(
             IEnumerable<(string Description, Rule[] Program, ComplexTerm[] Query, V[] ExpectedProofs)> situations,
@@ -480,6 +482,8 @@ namespace Prolog.Tests
             Assert.IsFalse(erroneousProofs.Any(), Environment.NewLine + string.Join(Environment.NewLine, erroneousProofs));
         }
 
-        private static string? _traceFilePath; 
+ #if UseLogging
+       private static string? _traceFilePath; 
+#endif
    }
 }
