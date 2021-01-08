@@ -35,9 +35,9 @@ namespace Prolog.Engine
         public static ComplexTerm List(params Term[] elements) => 
             elements.Reverse().Aggregate(EmptyList, (list, element) => Dot(element, list));
 
-        internal static ComplexTermFactory StandardOperator(string operatorName, Func<Term, Term, bool> invoke) =>
+        internal static ComplexTermFactory StandardBinaryOperator(string operatorName, Func<Term, Term, bool> invoke) =>
             formalArguments => ComplexTerm(
-                new BuiltinFunctor(
+                new BinaryOperator(
                     operatorName, 
                     2, 
                     arguments => invoke(arguments[0], arguments[1])),

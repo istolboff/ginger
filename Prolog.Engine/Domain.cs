@@ -19,7 +19,7 @@ namespace Prolog.Engine
     public sealed record Functor(string Name, int Arity) : FunctorBase(Name, Arity);
 
 #pragma warning disable CA1801 // Review unused parameters
-    internal sealed record BuiltinFunctor(string Name, int Arity, Func<IReadOnlyList<Term>, bool> Invoke) : FunctorBase(Name, Arity);
+    internal sealed record BinaryOperator(string Name, int Arity, Func<IReadOnlyList<Term>, bool> Invoke) : FunctorBase(Name, Arity);
 #pragma warning restore CA1801
 
     public sealed record ComplexTerm(FunctorBase Functor, StructuralEquatableArray<Term> Arguments) : Term;

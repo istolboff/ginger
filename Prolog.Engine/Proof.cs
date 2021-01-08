@@ -68,12 +68,12 @@ namespace Prolog.Engine
                     foreach (var matchingRule in matchingRules.Trace(nestingLevel, "matching rules"))
                     {
                         var ruleWithRenamedVariables = RenameRuleVariablesToMakeThemDifferentFromAlreadyUsedNames(matchingRule, mentionedVariableNames);
-                        var ruleConclusionUnificationResult = 
-                            (ruleWithRenamedVariables.Conclusion == True
-                                ? Unification.Success()
-                                : Unification.CarryOut(currentQuery, ruleWithRenamedVariables.Conclusion))
-                                .Trace(nestingLevel, "ruleConclusionUnificationResult");
-                        if (ruleConclusionUnificationResult.Succeeded)
+                        var ruleConclusionUnificationResult = ruleWithRenamedVariables.Conclusion.Functor switch 
+                            {
+                                BinaryOperator binaryOperator => binaryOperator.Invoke(currentQuery.Arguments) ? Unification.Success() : Unification.Failure,
+                                _ => Unification.CarryOut(currentQuery, ruleWithRenamedVariables.Conclusion)
+                            };
+                        if (ruleConclusionUnificationResult.Trace(nestingLevel, "ruleConclusionUnificationResult").Succeeded)
                         {
                             var updatedQueries = queries.RemoveAt(0).InsertRange(0, ruleWithRenamedVariables.Premises);
                             var updatedQueriesWithSubstitutedVariables = updatedQueries.Select(p => ApplyVariableInstantiations(p, ruleConclusionUnificationResult.Instantiations));
@@ -113,13 +113,7 @@ namespace Prolog.Engine
                 };
 
             static IEnumerable<Rule> FindMatchingRules(IReadOnlyCollection<Rule> programRules, ComplexTerm query) =>
-                query.Functor switch 
-                {
-                    Functor => programRules.Where(rule => Unification.IsPossible(rule.Conclusion, query)),
-                    BuiltinFunctor builtinFunctor => builtinFunctor.Invoke(query.Arguments) ? new[] { Rule(True) } : Enumerable.Empty<Rule>(),
-                    _ => throw new InvalidOperationException($"Do not know how to handle {query.Functor} functor.")
-                };
-                
+                programRules.Where(rule => Unification.IsPossible(rule.Conclusion, query));
 
             static Rule RenameRuleVariablesToMakeThemDifferentFromAlreadyUsedNames(Rule rule, IReadOnlySet<string> usedNames)
             {

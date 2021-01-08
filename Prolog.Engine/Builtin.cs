@@ -10,8 +10,6 @@ namespace Prolog.Engine
         public static readonly Variable _ = Variable("_");
 #pragma warning restore CA1707
 
-        public static readonly ComplexTerm True = ComplexTerm(Functor("True"));
-
         public static readonly ComplexTerm Cut = ComplexTerm(Functor("!"));
 
         public static readonly ComplexTerm Fail = ComplexTerm(Functor("fail"));
@@ -20,7 +18,7 @@ namespace Prolog.Engine
 
         public static readonly Functor CallFunctor = Functor("call", 1);
 
-        public static readonly ComplexTermFactory Equal = StandardOperator(
+        public static readonly ComplexTermFactory Equal = StandardBinaryOperator(
             "=", 
             (left, right) => 
                 left switch 
@@ -30,7 +28,7 @@ namespace Prolog.Engine
                     _ => false
                 });
 
-        public static readonly ComplexTermFactory NotEqual = StandardOperator(
+        public static readonly ComplexTermFactory NotEqual = StandardBinaryOperator(
             @"\=", 
             (left, right) => 
                 left switch 
@@ -40,7 +38,7 @@ namespace Prolog.Engine
                     _ => false
                 });
 
-        public static readonly ComplexTermFactory GreaterThanOrEqual = StandardOperator(
+        public static readonly ComplexTermFactory GreaterThanOrEqual = StandardBinaryOperator(
             ">=", 
             (left, right) => 
                 left switch 
@@ -50,7 +48,7 @@ namespace Prolog.Engine
                     _ => false
                 });
 
-        public static readonly ComplexTermFactory LessThan = StandardOperator(
+        public static readonly ComplexTermFactory LessThan = StandardBinaryOperator(
             "<", 
             (left, right) => 
                 left switch 
@@ -71,6 +69,12 @@ namespace Prolog.Engine
 
         public static readonly IReadOnlyCollection<Rule> Rules = new[]
         {
+            // standard operators
+            Fact(Equal(X, Y)),
+            Fact(NotEqual(X, Y)),
+            Fact(GreaterThanOrEqual(X, Y)),
+            Fact(LessThan(X, Y)),
+
             // not()
             Rule(Not(X), Call(X), Cut, Fail),
             Fact(Not(_)),
@@ -85,6 +89,7 @@ namespace Prolog.Engine
 
         // stock terms, usable for formulating built-in rules
         private static Variable X => Variable("X");
+        private static Variable Y => Variable("Y");
         private static Variable T => Variable("T");
     }
 }
