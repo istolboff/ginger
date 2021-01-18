@@ -50,7 +50,7 @@ namespace Prolog.Tests
             CheckSituations(
                 from s in situations
                 from query in new[] { Equal(s.LeftPart, s.RightPart), Equal(s.RightPart, s.LeftPart) }
-                select (Description: s.Description, Program: System.Array.Empty<Rule>(), Query: new[] { query }, ExpectedProofs: new[] { s.ExpectedProofs }));
+                select (s.Description, System.Array.Empty<Rule>(), new[] { query }, new[] { s.ExpectedProofs }));
         }
 
         [TestMethod]
@@ -69,7 +69,7 @@ namespace Prolog.Tests
             CheckSituations(
                 from s in situations
                 from query in new[] { NotEqual(s.LeftPart, s.RightPart), NotEqual(s.RightPart, s.LeftPart) }
-                select (Description: s.Description, Program: System.Array.Empty<Rule>(), Query: new[] { query }, ExpectedProofs: new[] { s.ExpectedProofs }));
+                select (s.Description, System.Array.Empty<Rule>(), new[] { query }, new[] { s.ExpectedProofs }));
         }
 
         [TestMethod]

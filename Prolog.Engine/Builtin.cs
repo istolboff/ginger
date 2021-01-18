@@ -21,7 +21,7 @@ namespace Prolog.Engine
 
         public static readonly ComplexTermFactory Equal = StandardPredicate(
             "=", 
-            (left, right) => Unification.CarryOut(left, right));
+            Unification.CarryOut);
 
         public static readonly ComplexTermFactory NotEqual = StandardPredicate(
             @"\=", 

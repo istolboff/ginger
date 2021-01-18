@@ -1,3 +1,4 @@
+using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Prolog.Engine;
 using static Prolog.Engine.Builtin;
@@ -209,8 +210,6 @@ namespace Prolog.Tests
         [TestMethod]
         public void SolvingVolfGoatCabbageRiddleUsingBreadthFirstApproach()
         {
-            // while (!System.Diagnostics.Debugger.IsAttached) { System.Threading.Thread.Sleep(System.TimeSpan.FromSeconds(1)); }
-
             var program = new[] 
                     {
                         // % Сущности
@@ -395,50 +394,70 @@ namespace Prolog.Tests
                         Rule(dictionaryRemoveKeys(Dot(X, Dictionary), Keys, Dot(X, Dictionary1)),
                             dictionaryRemoveKeys(Dictionary, Keys, Dictionary1)),
                         Fact(dictionaryRemoveKeys(EmptyList, _, EmptyList))
-
-                        // % начальноеСостояние(InitialState)
-                        // % , FinalStateName = 'волк съел козу'
-                        // % , конечноеСостояние(FinalStateName, FinalState)
-                        // % , solve(InitialState, FinalStateName, FinalState, Solution)
-                        // % , dictionaryValues(Solution, Route)
-
-                        // % начальноеСостояние(InitialState)
-                        // % , FinalStateName = 'коза съела капусту'
-                        // % , конечноеСостояние(FinalStateName, FinalState)
-                        // % , solve(InitialState, FinalStateName, FinalState, Solution)
-                        // % , dictionaryValues(Solution, Route)                        
                     };
 
-            CheckSituations(new[] 
-                {
+            var situations = new[]
+            {
                     (
                         Description: "Finding a solution for the Volf-Goat-Cabbage crossing the river riddle using breadth-first approach",
-                        Program: program,
-                        Query: new[] 
+                        DesiredFinalState: "миссия заканчивается успехом", 
+                        ExpectedSolutions: new[] 
+                        {
+                            List(
+                                перевозит(фермер, коза, левый, правый), 
+                                переправляется(фермер, правый, левый), 
+                                перевозит(фермер, волк, левый, правый), 
+                                перевозит(фермер, коза, правый, левый), 
+                                перевозит(фермер, капуста, левый, правый), 
+                                переправляется(фермер, правый, левый), 
+                                перевозит(фермер, коза, левый, правый)) 
+                        }
+                    ),
+
+                    (
+                        Description: "Make Volf-Goat-Cabbage crossing the river riddle end up in the 'волк съел козу' state",
+                        DesiredFinalState: "волк съел козу",
+                        ExpectedSolutions: new[] 
+                        {
+                            List(перевозит(фермер, капуста, левый, правый)),
+                            List(
+                                перевозит(фермер, коза, левый, правый), 
+                                переправляется(фермер, правый, левый), 
+                                перевозит(фермер, волк, левый, правый), 
+                                переправляется(фермер, правый, левый))
+                        }
+                    ),
+
+                    (
+                        Description: "Make Volf-Goat-Cabbage crossing the river riddle end up in the 'коза съела капусту' state",
+                        DesiredFinalState: "коза съела капусту",
+                        ExpectedSolutions: new[] 
+                        {
+                            List(перевозит(фермер, волк, левый, правый)),
+                            List(
+                                перевозит(фермер, коза, левый, правый), 
+                                переправляется(фермер, правый, левый), 
+                                перевозит(фермер, капуста, левый, правый), 
+                                переправляется(фермер, правый, левый))
+                        }
+                    )
+            };
+
+            CheckSituations(situations.Select(s => 
+                    (
+                        s.Description,
+                        program,
+                        new[] 
                         { 
                             начальноеСостояние(InitialState), 
-                            Equal(FinalStateName, Atom("миссия заканчивается успехом")), 
+                            Equal(FinalStateName, Atom(s.DesiredFinalState)),
                             конечноеСостояние(FinalStateName, FinalState), 
                             solve(InitialState, FinalStateName, FinalState, Solution), 
                             dictionaryValues(Solution, Route) 
                         },
-                        ExpectedSolutions: new[] 
-                        {
-                            new V 
-                            { 
-                                [Route] = List(
-                                    перевозит(фермер, коза, левый, правый), 
-                                    переправляется(фермер, правый, левый), 
-                                    перевозит(фермер, волк, левый, правый), 
-                                    перевозит(фермер, коза, правый, левый), 
-                                    перевозит(фермер, капуста, левый, правый), 
-                                    переправляется(фермер, правый, левый), 
-                                    перевозит(фермер, коза, левый, правый)) 
-                            }
-                        }
-                    ),
-                },
-                ignoreUnlistedActualInstantiations: true);
+                        System.Array.ConvertAll(s.ExpectedSolutions, es => new V { [Route] = es })
+                    )),
+                ignoreUnexpectedActualInstantiations: true);
         }
 
         [ClassInitialize] public static void TestClassInitialize(TestContext? testContext) => SetupLogging(testContext);

@@ -43,13 +43,13 @@ namespace Prolog.Tests
         protected static void CheckSituations(
             IEnumerable<(string Description, Rule[] Program, ComplexTerm[] Query, V[] ExpectedProofs)> situations,
             bool onlyFirstSolution = false,
-            bool ignoreUnlistedActualInstantiations = false)
+            bool ignoreUnexpectedActualInstantiations = false)
         {
             var erroneousProofs = 
                 (from situation in situations
                 let expectedProofs = situation.ExpectedProofs.Select(Unification.Success).ToArray()
                 let actualProofs = Proof.Find(situation.Program, situation.Query).Take(onlyFirstSolution ? 1 : int.MaxValue).ToArray()
-                where !ignoreUnlistedActualInstantiations
+                where !ignoreUnexpectedActualInstantiations
                         ? !expectedProofs.SequenceEqual(actualProofs)
                         : expectedProofs.Length != actualProofs.Length ||
                           expectedProofs.Zip(actualProofs).Any(it => it.First != RemoveUnlistedInstantiations(it.Second, it.First.Instantiations.Keys))
