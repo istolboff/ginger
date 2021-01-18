@@ -38,13 +38,18 @@ namespace Prolog.Engine
         public static ComplexTerm List(IEnumerable<Term> elements) => 
             elements.Aggregate(EmptyList, (list, element) => Dot(element, list));
 
-        public static IEnumerable<Term> IterableList(ComplexTerm list)
+        public static IEnumerable<Term> IterableList(ComplexTerm list, bool strictMode = true)
         {
-            for (var current = list; 
-                 current != null && current.IsList() && current != EmptyList; 
+            for (var current = list;
+                 current != null && current.IsList() && current != EmptyList;
                  current = current.Arguments[1] as ComplexTerm)
             {
                 yield return current.Arguments[0];
+
+                if (!strictMode && current.Arguments[1] is not ComplexTerm unused)
+                {
+                    yield return current.Arguments[1];
+                }
             }
         }
 
