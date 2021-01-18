@@ -13,7 +13,7 @@ namespace Prolog.Engine
 
         public static Number Number(int value) => new (value);
 
-        public static Variable Variable(string name) => new (name);
+        public static Variable Variable(string name) => new (name, IsTemporary: false);
 
         public static Functor Functor(string name, int arity = 0) => new (name, arity);
 
@@ -69,7 +69,9 @@ namespace Prolog.Engine
                     arguments => invoke(arguments[0], arguments[1], arguments[2])),
                 formalArguments);
 
-        internal static ComplexTermFactory MetaPredicate(string operatorName, Func<IReadOnlyCollection<Rule>, Term, Term, Term, UnificationResult> invoke) =>
+        internal static ComplexTermFactory MetaPredicate(
+            string operatorName, 
+            Func<IReadOnlyDictionary<(string FunctorName, int FunctorArity), IReadOnlyCollection<Rule>>, Term, Term, Term, UnificationResult> invoke) =>
             formalArguments => ComplexTerm(
                 new MetaFunctor(
                     operatorName, 

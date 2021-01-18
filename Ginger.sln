@@ -7,6 +7,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Prolog.Tests", "Prolog.Test
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Prolog.Engine", "Prolog.Engine\Prolog.Engine.csproj", "{EFD1CD57-9FED-40EC-8FCE-726B5D814FD5}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Ginger.Tests", "Ginger.Tests\Ginger.Tests.csproj", "{793F6325-E007-483A-824E-CBC1D51E6AAF}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Ginger.Runner", "Ginger.Runner\Ginger.Runner.csproj", "{0564E980-183C-4834-A484-B7B5F2F913A3}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -44,5 +48,29 @@ Global
 		{EFD1CD57-9FED-40EC-8FCE-726B5D814FD5}.Release|x64.Build.0 = Release|Any CPU
 		{EFD1CD57-9FED-40EC-8FCE-726B5D814FD5}.Release|x86.ActiveCfg = Release|Any CPU
 		{EFD1CD57-9FED-40EC-8FCE-726B5D814FD5}.Release|x86.Build.0 = Release|Any CPU
+		{793F6325-E007-483A-824E-CBC1D51E6AAF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{793F6325-E007-483A-824E-CBC1D51E6AAF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{793F6325-E007-483A-824E-CBC1D51E6AAF}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{793F6325-E007-483A-824E-CBC1D51E6AAF}.Debug|x64.Build.0 = Debug|Any CPU
+		{793F6325-E007-483A-824E-CBC1D51E6AAF}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{793F6325-E007-483A-824E-CBC1D51E6AAF}.Debug|x86.Build.0 = Debug|Any CPU
+		{793F6325-E007-483A-824E-CBC1D51E6AAF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{793F6325-E007-483A-824E-CBC1D51E6AAF}.Release|Any CPU.Build.0 = Release|Any CPU
+		{793F6325-E007-483A-824E-CBC1D51E6AAF}.Release|x64.ActiveCfg = Release|Any CPU
+		{793F6325-E007-483A-824E-CBC1D51E6AAF}.Release|x64.Build.0 = Release|Any CPU
+		{793F6325-E007-483A-824E-CBC1D51E6AAF}.Release|x86.ActiveCfg = Release|Any CPU
+		{793F6325-E007-483A-824E-CBC1D51E6AAF}.Release|x86.Build.0 = Release|Any CPU
+		{0564E980-183C-4834-A484-B7B5F2F913A3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0564E980-183C-4834-A484-B7B5F2F913A3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0564E980-183C-4834-A484-B7B5F2F913A3}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{0564E980-183C-4834-A484-B7B5F2F913A3}.Debug|x64.Build.0 = Debug|Any CPU
+		{0564E980-183C-4834-A484-B7B5F2F913A3}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{0564E980-183C-4834-A484-B7B5F2F913A3}.Debug|x86.Build.0 = Debug|Any CPU
+		{0564E980-183C-4834-A484-B7B5F2F913A3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0564E980-183C-4834-A484-B7B5F2F913A3}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0564E980-183C-4834-A484-B7B5F2F913A3}.Release|x64.ActiveCfg = Release|Any CPU
+		{0564E980-183C-4834-A484-B7B5F2F913A3}.Release|x64.Build.0 = Release|Any CPU
+		{0564E980-183C-4834-A484-B7B5F2F913A3}.Release|x86.ActiveCfg = Release|Any CPU
+		{0564E980-183C-4834-A484-B7B5F2F913A3}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

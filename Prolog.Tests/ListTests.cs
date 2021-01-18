@@ -1,12 +1,5 @@
-using System;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using Prolog.Engine;
-
-using static Prolog.Engine.Builtin;
-using static Prolog.Engine.DomainApi;
-using static Prolog.Tests.StockTerms;
-
-using V = System.Collections.Generic.Dictionary<Prolog.Engine.Variable, Prolog.Engine.Term>;
+using V = System.Collections.Generic.Dictionary<string, string>;
 
 namespace Prolog.Tests
 {
@@ -20,42 +13,39 @@ namespace Prolog.Tests
             {
                 (
                     Description: "Testing built-in member() functor",
-                    Program: Array.Empty<Rule>(),
-                    Query: new[] { Member(X, List(dudweiler,fahlquemont,forbach,freyming,metz,nancy,saarbruecken,stAvold)) },
+                    Program: string.Empty,
+                    Query: "member(X, [dudweiler,fahlquemont,forbach,freyming,metz,nancy,saarbruecken,stAvold])",
                     ExpectedSolutions: new[] 
                     {
-                        new V { [X] = dudweiler },
-                        new V { [X] = fahlquemont },
-                        new V { [X] = forbach },
-                        new V { [X] = freyming },
-                        new V { [X] = metz },
-                        new V { [X] = nancy },
-                        new V { [X] = saarbruecken },
-                        new V { [X] = stAvold }                    
+                        new V { ["X"] = "dudweiler" },
+                        new V { ["X"] = "fahlquemont" },
+                        new V { ["X"] = "forbach" },
+                        new V { ["X"] = "freyming" },
+                        new V { ["X"] = "metz" },
+                        new V { ["X"] = "nancy" },
+                        new V { ["X"] = "saarbruecken" },
+                        new V { ["X"] = "stAvold" }                    
                     }
                 ),
 
                 (
                     Description: "Testing built-in member() functor when nontrivial unification required",
-                    Program: Array.Empty<Rule>(),
-                    Query: new[] { Member(pair(edge(X, List(one, two, three)), Действие), List(a, pair(edge(List(a, b, c), List(one, two, three)), перевозит(волк, правый, левый)), b)) },
+                    Program: string.Empty,
+                    Query: "member(pair(edge(X, [one, two, three]), Действие), [a, pair(edge( [a, b, c], [one, two, three]), перевозит(волк, правый, левый)), b])",
                     ExpectedSolutions: new[] 
                     {
                         new V 
                         {  
-                            [X] = List(a, b, c),
-                            [Действие] = перевозит(волк, правый, левый)
+                            ["X"] = "[a, b, c]",
+                            ["Действие"] = "перевозит(волк, правый, левый)"
                         },
                     }
                 ),
 
                 (
                     Description: "Testing not(member(X, Y)) junction, checking the presence of an atom",
-                    Program: Array.Empty<Rule>(),
-                    Query: new[] 
-                    { 
-                        Not(Member(fahlquemont, List(dudweiler,metz,nancy,saarbruecken,stAvold)))
-                    },
+                    Program: string.Empty,
+                    Query: "not(member(fahlquemont, [dudweiler,metz,nancy,saarbruecken,stAvold]))",
                     ExpectedSolutions: new[] 
                     {
                         new V()
@@ -64,17 +54,15 @@ namespace Prolog.Tests
 
                 (
                     Description: "Testing not(member(X, Y)) junction, listing all possible proofs",
-                    Program: Array.Empty<Rule>(),
-                    Query: new[] 
-                    { 
-                        Member(X, List(dudweiler,fahlquemont,forbach,freyming,metz,nancy,saarbruecken,stAvold)),
-                        Not(Member(X, List(dudweiler,metz,nancy,saarbruecken,stAvold)))
-                    },
+                    Program: string.Empty,
+                    Query: @"
+                        member(X, [dudweiler,fahlquemont,forbach,freyming,metz,nancy,saarbruecken,stAvold]),
+                        not(member(X, [dudweiler,metz,nancy,saarbruecken,stAvold]))",
                     ExpectedSolutions: new[] 
                     {
-                        new V { [X] = fahlquemont },
-                        new V { [X] = forbach },
-                        new V { [X] = freyming }
+                        new V { ["X"] = "fahlquemont" },
+                        new V { ["X"] = "forbach" },
+                        new V { ["X"] = "freyming" }
                     }
                 )
             });
@@ -87,18 +75,18 @@ namespace Prolog.Tests
             {
                 (
                     Description: "Testing built-in subset() functor, lists contain only atoms",
-                    Program: Array.Empty<Rule>(),
-                    Query: new[] { Subset(List(fahlquemont,forbach,dudweiler), List(dudweiler,fahlquemont,forbach,freyming,metz,nancy,saarbruecken,stAvold)) },
+                    Program: string.Empty,
+                    Query: "subset([fahlquemont,forbach,dudweiler], [dudweiler,fahlquemont,forbach,freyming,metz,nancy,saarbruecken,stAvold])",
                     ExpectedSolutions: new[] { new V() }
                 ),
 
                 (
                     Description: "Testing built-in subset() functor, lists contain complex terms with variables: result should contain correct instantiations of those variables",
-                    Program: Array.Empty<Rule>(),
-                    Query: new[] { Subset(List(edge(one, X), edge(two, Y)), List(edge(two, three), edge(one, thirty))) },
+                    Program: string.Empty,
+                    Query: "subset([edge(one, X), edge(two, Y)], [edge(two, three), edge(one, thirty)])",
                     ExpectedSolutions: new[] 
                     { 
-                        new V { [X] = thirty, [Y] = three }
+                        new V { ["X"] = "thirty", ["Y"] = "three" }
                     }
                 ),
             });
@@ -111,21 +99,21 @@ namespace Prolog.Tests
             {
                 (
                     Description: "Testing built-in substract() functor, lists contain only atoms",
-                    Program: Array.Empty<Rule>(),
-                    Query: new[] { Subtract(List(dudweiler,fahlquemont,forbach,freyming,metz,nancy,saarbruecken,stAvold), List(dudweiler,fahlquemont,forbach), Z) },
+                    Program: string.Empty,
+                    Query: "subtract([dudweiler,fahlquemont,forbach,freyming,metz,nancy,saarbruecken,stAvold], [dudweiler,fahlquemont,forbach], Z)",
                     ExpectedSolutions: new[] 
                     { 
-                        new V { [Z] = List(freyming,metz,nancy,saarbruecken,stAvold) }
+                        new V { ["Z"] = "[freyming,metz,nancy,saarbruecken,stAvold]" }
                     }
                 ),
 
                 (
                     Description: "Testing built-in substract() functor, lists contain complex terms with variables: result should contain correct instantiations of those variables",
-                    Program: Array.Empty<Rule>(),
-                    Query: new[] { Subtract(List(edge(two, three), edge(one, thirty)), List(edge(one, X), edge(two, Y)), Z) },
+                    Program: string.Empty,
+                    Query: "subtract([edge(2, 3), edge(1, 30)], [edge(1, X), edge(2, Y)], Z)",
                     ExpectedSolutions: new[] 
                     { 
-                        new V { [X] = thirty, [Y] = three, [Z] = EmptyList }
+                        new V { ["X"] = "30", ["Y"] = "3", ["Z"] = "[]" }
                     }
                 )
             });
@@ -138,31 +126,31 @@ namespace Prolog.Tests
             {
                 (
                     Description: "Testing built-in union() functor, first list is empty",
-                    Program: Array.Empty<Rule>(),
-                    Query: new[] { Append(EmptyList, List(dudweiler,fahlquemont,forbach,freyming,metz,nancy,saarbruecken,stAvold), Z) },
+                    Program: string.Empty,
+                    Query: "append([], [dudweiler,fahlquemont,forbach,freyming,metz,nancy,saarbruecken,stAvold], Z)",
                     ExpectedSolutions: new[] 
                     { 
-                        new V { [Z] = List(dudweiler,fahlquemont,forbach,freyming,metz,nancy,saarbruecken,stAvold) }
+                        new V { ["Z"] = "[dudweiler,fahlquemont,forbach,freyming,metz,nancy,saarbruecken,stAvold]" }
                     }
                 ),
 
                 (
                     Description: "Testing built-in union() functor, second list is empty",
-                    Program: Array.Empty<Rule>(),
-                    Query: new[] { Append(List(dudweiler,fahlquemont,forbach,freyming,metz,nancy,saarbruecken,stAvold), EmptyList, Z) },
+                    Program: string.Empty,
+                    Query: "append([dudweiler,fahlquemont,forbach,freyming,metz,nancy,saarbruecken,stAvold], [], Z)",
                     ExpectedSolutions: new[] 
                     { 
-                        new V { [Z] = List(dudweiler,fahlquemont,forbach,freyming,metz,nancy,saarbruecken,stAvold) }
+                        new V { ["Z"] = "[dudweiler,fahlquemont,forbach,freyming,metz,nancy,saarbruecken,stAvold]" }
                     }
                 ),
 
                 (
                     Description: "Testing built-in union() functor, both lists are non-empty",
-                    Program: Array.Empty<Rule>(),
-                    Query: new[] { Append(List(metz,nancy,saarbruecken,stAvold), List(dudweiler,fahlquemont,forbach,freyming), Z) },
+                    Program: string.Empty,
+                    Query: "append([metz,nancy,saarbruecken,stAvold], [dudweiler,fahlquemont,forbach,freyming], Z)",
                     ExpectedSolutions: new[] 
                     { 
-                        new V { [Z] = List(metz,nancy,saarbruecken,stAvold,dudweiler,fahlquemont,forbach,freyming) }
+                        new V { ["Z"] = "[metz,nancy,saarbruecken,stAvold,dudweiler,fahlquemont,forbach,freyming]" }
                     }
                 )
             });
@@ -175,11 +163,11 @@ namespace Prolog.Tests
             {
                 (
                     Description: "Testing built-in sort() functor",
-                    Program: Array.Empty<Rule>(),
-                    Query: new[] { Sort(List(metz,fahlquemont,nancy,freyming,stAvold,dudweiler,saarbruecken,forbach), Z) },
+                    Program: string.Empty,
+                    Query: "sort([metz,fahlquemont,nancy,freyming,stAvold,dudweiler,saarbruecken,forbach], Z)",
                     ExpectedSolutions: new[] 
                     { 
-                        new V { [Z] = List(dudweiler, fahlquemont, forbach, freyming, metz, nancy, saarbruecken, stAvold) }
+                        new V { ["Z"] = "[dudweiler, fahlquemont, forbach, freyming, metz, nancy, saarbruecken, stAvold]" }
                     }
                 )                
             });
@@ -190,56 +178,59 @@ namespace Prolog.Tests
         {
             CheckSituations(new[]
             {
+#if CommentedOut                
                 (
                     Description: "Testing built-in flatten() functor: empty list",
-                    Program: Array.Empty<Rule>(),
-                    Query: new[] { Flatten(EmptyList, Z) },
+                    Program: string.Empty,
+                    Query: "flatten([], Z)",
                     ExpectedSolutions: new[] 
                     { 
-                        new V { [Z] = EmptyList }
+                        new V1 { ["Z"] = "[]" }
                     }
                 ),
 
                 (
                     Description: "Testing built-in flatten() functor: list with a single non-list element",
-                    Program: Array.Empty<Rule>(),
-                    Query: new[] { Flatten(List(atom), Z) },
+                    Program: string.Empty,
+                    Query: "flatten([atom], Z)",
                     ExpectedSolutions: new[] 
                     { 
-                        new V { [Z] = List(atom) }
+                        new V1 { ["Z"] = "[atom]" }
                     }
                 ),
-
+#endif
                 (
                     Description: "Testing built-in flatten() functor: list with a single list element",
-                    Program: Array.Empty<Rule>(),
-                    Query: new[] { Flatten(List(List(List(atom))), Z) },
+                    Program: string.Empty,
+                    Query: "flatten([[atom]], Z)",
                     ExpectedSolutions: new[] 
                     { 
-                        new V { [Z] = List(atom) }
+                        new V { ["Z"] = "[atom]" }
                     }
                 ),
 
                 (
                     Description: "Testing built-in flatten() functor: list with several non-list element",
-                    Program: Array.Empty<Rule>(),
-                    Query: new[] { Flatten(List(atom, edge(one, a), thirty, волк), Z) },
+                    Program: string.Empty,
+                    Query: "flatten([atom, edge(one, a), thirty, волк], Z)",
                     ExpectedSolutions: new[] 
                     { 
-                        new V { [Z] = List(atom, edge(one, a), thirty, волк) }
+                        new V { ["Z"] = "[atom, edge(one, a), thirty, волк]" }
                     }
                 ),
 
                 (
                     Description: "Testing built-in flatten() functor: complex case",
-                    Program: Array.Empty<Rule>(),
-                    Query: new[] { Flatten(List(atom, List(edge(one, a), thirty), List(List(волк, left), state(b, c))), Z) },
+                    Program: string.Empty,
+                    Query: "flatten([atom, [edge(one, a), thirty], [[волк, left], state(b, c)]], Z)",
                     ExpectedSolutions: new[] 
                     { 
-                        new V { [Z] = List(atom, edge(one, a), thirty, волк, left, state(b, c)) }
+                        new V { ["Z"] = "[atom, edge(one, a), thirty, волк, left, state(b, c)]" }
                     }
                 ),
             });
         }
+
+        [ClassInitialize] public static void TestClassInitialize(TestContext? testContext) => SetupLogging(testContext);
     }
 }

@@ -1,10 +1,17 @@
 using System;
+using JetBrains.Annotations;
 
 namespace Prolog.Engine
 {
     internal static class MakeCompilerHappy
     {
-        public static T SuppressCa1062<T>(T? reference) where T : class => 
+        public static T SuppressCa1062<T>([UsedImplicitly] T? reference) where T : class => 
             reference ?? throw new ArgumentNullException(nameof(reference));
+
+#pragma warning disable CA1801 // Review unused parameters
+        public static void SuppressCa1806<T>([UsedImplicitly] T unused)
+#pragma warning restore CA1801
+        {
+        }
     }
 }

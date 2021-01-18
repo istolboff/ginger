@@ -1,6 +1,8 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 
+using static Prolog.Engine.DomainApi;
 using static Prolog.Engine.MakeCompilerHappy;
 
 namespace Prolog.Engine
@@ -28,5 +30,12 @@ namespace Prolog.Engine
 
         public static bool IsList(this ComplexTerm @this) => 
             SuppressCa1062(@this) == Builtin.EmptyList || SuppressCa1062(@this).Functor.Equals(Builtin.DotFunctor);
+
+        public static IEnumerable<T> CastToList<T>(this Term term) =>
+            term switch
+            {
+                ComplexTerm list when list.IsList() => IterableList(list).Cast<T>(),
+                _ => throw new ArgumentException($"{term} is supposed to be a Prolog list of {typeof(T).Name}.", nameof(term))
+            };
     }
 }

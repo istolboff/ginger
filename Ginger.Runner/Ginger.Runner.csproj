@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net5.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Prolog.Engine\Prolog.Engine.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>Ginger.Tests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>  
+
+  <ItemGroup>
+    <Reference Include="gren_fx">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\GrammarEngine\src\lib64\gren_fx.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="SentenceUnderstandingRules.txt" />
+  </ItemGroup>
+</Project>

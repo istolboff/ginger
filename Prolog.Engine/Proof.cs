@@ -10,10 +10,24 @@ namespace Prolog.Engine
 {
     public static class Proof
     {
-        public static IEnumerable<UnificationResult> Find(IReadOnlyCollection<Rule> programRules, params ComplexTerm[] queries) =>
-            FindCore(Builtin.Rules.Concat(programRules).AsImmutable(), queries);
+        public static IEnumerable<UnificationResult> Find(
+            IReadOnlyCollection<Rule> programRules, 
+            IEnumerable<IReadOnlyCollection<ComplexTerm>> queriesAlternatives) =>
+            queriesAlternatives.SelectMany(queries => Find(programRules, queries.ToArray()));
 
-        internal static IEnumerable<UnificationResult> FindCore(IReadOnlyCollection<Rule> programRules, params ComplexTerm[] queries)
+        public static IEnumerable<UnificationResult> Find(
+            IReadOnlyCollection<Rule> programRules, 
+            params ComplexTerm[] queries) =>
+            FindCore(
+                Builtin.Rules
+                    .Concat(CheckProgramRules(programRules))
+                    .GroupBy(r => (r.Conclusion.Functor.Name, r.Conclusion.Functor.Arity))
+                    .ToDictionary(g => g.Key, g => g.AsImmutable()), 
+                queries);
+
+        internal static IEnumerable<UnificationResult> FindCore(
+            IReadOnlyDictionary<(string FunctorName, int FunctorArity), IReadOnlyCollection<Rule>> programRules, 
+            params ComplexTerm[] queries)
         {
             var queryVariableNames = ListAllMentionedVariableNames(queries);
             return FindCore(
@@ -31,7 +45,7 @@ namespace Prolog.Engine
         public static event Action<string?, int, object>? ProofEvent;
 
         private static IEnumerable<UnificationResult> FindCore(
-                IReadOnlyCollection<Rule> programRules,
+                IReadOnlyDictionary<(string FunctorName, int FunctorArity), IReadOnlyCollection<Rule>> programRules,
                 ImmutableList<ComplexTerm> queries,
                 ImmutableHashSet<string> mentionedVariableNames,
                 ImmutableDictionary<Variable, Term> variableInstantiations,
@@ -117,8 +131,15 @@ namespace Prolog.Engine
                     _ => throw new InvalidOperationException($"Can not apply call() to {currentQueryRaw.Arguments}. Only single variable is accepted.")
                 };
 
-            static IEnumerable<Rule> FindMatchingRules(IReadOnlyCollection<Rule> programRules, ComplexTerm query) =>
-                programRules.Where(rule => Unification.IsPossible(rule.Conclusion, query));
+            static IEnumerable<Rule> FindMatchingRules(
+                IReadOnlyDictionary<(string FunctorName, int FunctorArity), IReadOnlyCollection<Rule>> programRules, 
+                ComplexTerm query) =>
+                programRules
+                    .TryFind((query.Functor.Name, query.Functor.Arity))
+                    .Map(rules => rules.Where(rule => Unification.IsPossible(rule.Conclusion, query)))
+                    .OrElse(() => throw new InvalidOperationException($"procedure '{query.Functor.Name}/{query.Functor.Arity}' does not exist"));
+
+                // programRules.Where(rule => Unification.IsPossible(rule.Conclusion, query));
 
             static Rule RenameRuleVariablesToMakeThemDifferentFromAlreadyUsedNames(Rule rule, IReadOnlySet<string> usedNames)
             {
@@ -200,6 +221,19 @@ namespace Prolog.Engine
 
         private static Variable GenerateNewVariable() =>
             new (Name: $"_{++_nextNewVariableIndex}", IsTemporary: true);
+
+        private static IEnumerable<Rule> CheckProgramRules(IReadOnlyCollection<Rule> programRules) =>
+            programRules
+                .Select(r => Builtin.TryResolveFunctor(r.Conclusion))
+                .Where(conclusion => conclusion != null)
+                .AsImmutable()
+                .Apply(invalidConclusions => !invalidConclusions.Any() 
+                    ? programRules
+                    : throw new InvalidOperationException(
+                        string.Join(
+                            Environment.NewLine, 
+                            from c in invalidConclusions
+                            select $"It's impossible to re-define built-in procedure '{c.Functor.Name}/{c.Functor.Arity}'")));
 
         private static T Trace<T>(this T @this, int nestingLevel, string? description = null)
         {

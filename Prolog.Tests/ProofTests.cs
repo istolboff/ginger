@@ -1,11 +1,7 @@
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using Prolog.Engine;
-using static Prolog.Engine.Builtin;
-using static Prolog.Engine.DomainApi;
-using static Prolog.Tests.StockTerms;
 
-using V = System.Collections.Generic.Dictionary<Prolog.Engine.Variable, Prolog.Engine.Term>;
+using V = System.Collections.Generic.Dictionary<string, string>;
 
 namespace Prolog.Tests
 {
@@ -19,11 +15,11 @@ namespace Prolog.Tests
             {
                 (
                     Description: "Adhoc test",
-                    Program: System.Array.Empty<Rule>(),
-                    Query: new[] { Equal(FinalStateName, Atom("миссия заканчивается успехом")) },
+                    Program: string.Empty,
+                    Query: "FinalStateName = 'миссия заканчивается успехом'",
                     ExpectedProofs: new[] 
                     { 
-                        new V { [FinalStateName] = Atom("миссия заканчивается успехом") }
+                        new V { ["FinalStateName"] = "'миссия заканчивается успехом'" }
                     }
                 )
             });
@@ -32,48 +28,48 @@ namespace Prolog.Tests
             {
                 (
                     Description: "Single unification without variable instantiations",
-                    Program: new[] { Fact(f(a)) },
-                    Query: new[] { f(a) },
+                    Program: "f(a).",
+                    Query: "f(a)",
                     ExpectedProofs: new[] { new V() }
                 ),
 
                 (
                     Description: "Single unification with single variable instantiation",
-                    Program: new[] { Fact(f(a)) },
-                    Query: new[] { f(X) },
-                    ExpectedProofs: new[] { new V { [X] = a } }
+                    Program: "f(a).",
+                    Query: "f(X)",
+                    ExpectedProofs: new[] { new V { ["X"] = "a" } }
                 ),
 
                 (
                     Description: "Several facts unifications with single variable instantiation",
-                    Program: new[] { Fact(f(a)), Fact(f(b)) },
-                    Query: new[] { f(X) },
+                    Program: "f(a). f(b).",
+                    Query: "f(X)",
                     ExpectedProofs: new[] 
                     { 
-                        new V { [X] = a }, 
-                        new V { [X] = b }
+                        new V { ["X"] = "a" }, 
+                        new V { ["X"] = "b" }
                     }
                 ),
 
                 (
                     Description: "Multiple queries proof",
-                    Program: new[] { Fact(f(a)), Fact(f(b)), Fact(g(a)), Fact(g(b)), Fact(h(b)) },
-                    Query: new[] { f(X), g(X), h(X) },
-                    ExpectedProofs: new[] { new V { [X] = b } }
+                    Program: "f(a). f(b). g(a). g(b). h(b).",
+                    Query: "f(X), g(X), h(X)",
+                    ExpectedProofs: new[] { new V { ["X"] = "b" } }
                 ),
 
                 (
                     Description: "Non-trivial calculations based on unification only",
-                    Program: new[] { Fact(vertical(line(point(X, Y),point(X, Z)))) },
-                    Query: new[] { vertical(line(point(two, three), P)) },
-                    ExpectedProofs: new[] { new V { [P] = point(two, _) } }
+                    Program: "vertical(line(point(X, Y), point(X, Z))).",
+                    Query: "vertical(line(point(two, three), P))",
+                    ExpectedProofs: new[] { new V { ["P"] = "point(two, _)" } }
                 ),
 
                 (
                     Description: "Non-trivial calculations based on unification only (checking the case of clashing variable names)",
-                    Program: new[] { Fact(horizontal(line(point(_, X),point(_, X)))) },
-                    Query: new[] { horizontal(line(point(two, three), X)) },
-                    ExpectedProofs: new[] { new V { [X] = point(_, three) } }
+                    Program: "horizontal(line(point(_, X), point(_, X))).",
+                    Query: "horizontal(line(point(two, three), X))",
+                    ExpectedProofs: new[] { new V { ["X"] = "point(_, three)" } }
                 )
             });
         }
@@ -85,20 +81,18 @@ namespace Prolog.Tests
             {
                 (
                     Description: "Simple recursion",
-                    Program: new[] 
-                        { 
-                            Fact(edge(a, b)), 
-                            Fact(edge(b, c)), 
-                            Fact(edge(c, d)), 
-                            Rule(path(X, Y), edge(X, Y)), 
-                            Rule(path(X, Z), edge(X, Y), path(Y, Z)) 
-                        },
-                    Query: new[] { path(a,X) },
+                    Program: @"
+                            edge(a, b). 
+                            edge(b, c). 
+                            edge(c, d). 
+                            path(X, Y) :- edge(X, Y).
+                            path(X, Z) :- edge(X, Y), path(Y, Z).",
+                    Query: "path(a,X)",
                     ExpectedProofs: new[] 
                     { 
-                        new V { [X] = b }, 
-                        new V { [X] = c }, 
-                        new V { [X] = d } 
+                        new V { ["X"] = "b" }, 
+                        new V { ["X"] = "c" }, 
+                        new V { ["X"] = "d" } 
                     }
                 )
             });
@@ -111,31 +105,29 @@ namespace Prolog.Tests
             {
                 (
                     Description: "Building a route in an acyclic graph",
-                    Program: new[]
-                    {
-                        Fact(directTrain(saarbruecken, dudweiler)),
-                        Fact(directTrain(forbach,      saarbruecken)),
-                        Fact(directTrain(freyming,     forbach)),
-                        Fact(directTrain(stAvold,      freyming)),
-                        Fact(directTrain(fahlquemont,  stAvold)),
-                        Fact(directTrain(metz,         fahlquemont)),
-                        Fact(directTrain(nancy,        metz)),
+                    Program: @"
+                        directTrain(saarbruecken, dudweiler).
+                        directTrain(forbach,      saarbruecken).
+                        directTrain(freyming,     forbach).
+                        directTrain(stAvold,      freyming).
+                        directTrain(fahlquemont,  stAvold).
+                        directTrain(metz,         fahlquemont).
+                        directTrain(nancy,        metz).
 
-                        Rule(connected(A, B), directTrain(A, B)),
-                        Rule(connected(A, B), directTrain(B, A)),
+                        connected(A, B):-directTrain(A, B).
+                        connected(A, B):-directTrain(B, A).
 
-                        Rule(route(A, B, List(A, B), _), connected(A, B), Cut),
-                        Rule(route(A, B, Dot(A, R), Visited),
+                        route(A, B, [A, B], _) :- connected(A, B), !.
+                        route(A, B, [A | R], Visited) :-
                             connected(A, C),
-                            Not(Member(C, Visited)),
-                            route(C, B, R, Dot(A, Visited))),
+                            not(member(C, Visited)),
+                            route(C, B, R, [A | Visited]).
 
-                        Rule(route(A, B, R), route(A, B, R, EmptyList))
-                    },
-                    Query: new[] { route(forbach, metz, Route) },
+                        route(A, B, R):- route(A, B, R, []).",
+                    Query: "route(forbach, metz, Route)",
                     ExpectedSolutions: new[] 
                     {
-                        new V { [Route] = List(forbach, freyming, stAvold, fahlquemont, metz) }
+                        new V { ["Route"] = "[forbach, freyming, stAvold, fahlquemont, metz]" }
                     }
                 )
             });
@@ -144,54 +136,57 @@ namespace Prolog.Tests
         [TestMethod]
         public void SolvingVolfGoatCabbageRiddleUsingDepthFirstApproach()
         {
-            var amocwm = atMostOneCreatureWasMoved(List(A, B, C), List(A1, B1, C1), NewFarmerPosition);
-            var sao = sidesAreOk(FarmerPosition, WolfPosition, GoatPosition, CabbagePosition);
             CheckSituations(new[] 
             {
                 (
                     Description: "Finding a solution for the Volf-Goat-Cabbage crossing the river riddle",
-                    Program: new[] 
-                    {
-                        Fact(riverbank(right)),
-                        Fact(riverbank(left)),
+                    Program: @"
+                        % state(FarmerPosition, WolfPosition, GoatPosition, CabbagePosition)
+                        % Each position can be either right or left
+                        
+                        riverbank(right).
+                        riverbank(left).
 
-                        Rule(
-                            canMove(
-                                state(FarmerPosition, WolfPosition, GoatPosition, CabbagePosition),
-                                state(FarmerPosition1, WolfPosition1, GoatPosition1, CabbagePosition1)),
+                        canMove(
+                        state(FarmerPosition, WolfPosition, GoatPosition, CabbagePosition),
+                        state(FarmerPosition1, WolfPosition1, GoatPosition1, CabbagePosition1)) :-
                             riverbank(FarmerPosition1), 
                             riverbank(WolfPosition1), 
                             riverbank(GoatPosition1), 
                             riverbank(CabbagePosition1),
-                            NotEqual(FarmerPosition1, FarmerPosition),
-                            atMostOneCreatureWasMoved(List(WolfPosition, GoatPosition, CabbagePosition), List(WolfPosition1, GoatPosition1, CabbagePosition1), FarmerPosition1),
-                            sidesAreOk(FarmerPosition1, WolfPosition1, GoatPosition1, CabbagePosition1)),
+                            FarmerPosition1 \= FarmerPosition,
+                            atMostOneCreatureWasMoved([WolfPosition, GoatPosition, CabbagePosition], [WolfPosition1, GoatPosition1, CabbagePosition1], FarmerPosition1),
+                            sidesAreOk(FarmerPosition1, WolfPosition1, GoatPosition1, CabbagePosition1).
 
+                        atMostOneCreatureWasMoved([A, B, C], [A1, B1, C1], NewFarmerPosition) :- 
+                            A \= A1, B = B1, C = C1, NewFarmerPosition = A1
+                            ;   
+                            A = A1, B \= B1, C = C1, NewFarmerPosition = B1
+                            ;   
+                            A = A1, B = B1, C \= C1, NewFarmerPosition = C1
+                            ;
+                            A = A1, B = B1, C = C1.
 
-                        Rule(amocwm, NotEqual(A, A1), Equal(B, B1), Equal(C, C1), Equal(NewFarmerPosition, A1)),
-                        Rule(amocwm, Equal(A, A1), NotEqual(B, B1), Equal(C, C1), Equal(NewFarmerPosition, B1)),
-                        Rule(amocwm, Equal(A, A1), Equal(B, B1), NotEqual(C, C1), Equal(NewFarmerPosition, C1)),
-                        Rule(amocwm, Equal(A, A1), Equal(B, B1), Equal(C, C1)),
+                        sidesAreOk(FarmerPosition, WolfPosition, GoatPosition, CabbagePosition) :-
+                            WolfPosition \= GoatPosition, GoatPosition \= CabbagePosition
+                            ;   
+                            FarmerPosition = GoatPosition.
 
-                        Rule(sao, NotEqual(WolfPosition, GoatPosition), NotEqual(GoatPosition, CabbagePosition)),
-                        Rule(sao, Equal(FarmerPosition, GoatPosition)),
-
-                        Rule(solve(State, Solution), depthfirst(EmptyList, State, Solution)),
+                        solve(State, Solution) :-
+                            depthfirst([], State, Solution).
                             
-                        Fact(depthfirst(_, state(right, right, right, right), List(state(right, right, right, right)))),
+                        depthfirst(_, state(right, right, right, right), [state(right, right, right, right)]).
 
-                        Rule(
-                            depthfirst(Path, State, Dot(State, Solution1)),
+                        depthfirst(Path, State, [State | Solution1]) :-
                             canMove(State, State1),
-                            Not(Member(State1, Path)),
-                            depthfirst(Dot(State, Path), State1, Solution1))
-                    },
-                    Query: new[] { solve(state(left, left, left, left), Solution) },
+                            not(member(State1, Path)),
+                            depthfirst([State | Path], State1, Solution1).",
+                    Query: "solve(state(left, left, left, left), Solution)",
                     ExpectedSolutions: new[] 
                     { 
                         new V
                         {
-                            [Solution] = List(
+                            ["Solution"] = @"[
                                 state(left, left, left, left),
                                 state(right, left, right, left),
                                 state(left, left, right, left),
@@ -199,7 +194,7 @@ namespace Prolog.Tests
                                 state(left, right, left, left),
                                 state(right, right, left, right),
                                 state(left, right, left, right),
-                                state(right, right, right, right))
+                                state(right, right, right, right)]"
                         }
                     }
                 )
@@ -210,191 +205,188 @@ namespace Prolog.Tests
         [TestMethod]
         public void SolvingVolfGoatCabbageRiddleUsingBreadthFirstApproach()
         {
-            var program = new[] 
-                    {
-                        // % Сущности
-                        // % ========
+            var program = @"
+                % Сущности
+                % ========
 
-                        // % река имеет левый и правый берега
-                            Fact(берег(река, левый)),
-                            Fact(берег(река, правый)),
+                % река имеет левый и правый берега
+                    берег(река, левый).
+                    берег(река, правый).
 
-                        // % перевозимые существа это волк, коза и капуста 
-                            Fact(перевозимоеCущество(волк)),
-                            Fact(перевозимоеCущество(коза)),
-                            Fact(перевозимоеCущество(капуста)),
-
-
-                        // % Воздействия
-                        // % ===========
-
-                        // % Действие 'фермер перевозит перевозимое существо на другой берег' переводит из состояния 
-                        // % 'фермер и перевозимое существо находятся на одном берегу' в состояние 
-                        // % 'фермер и перевозимое существо находятся на другом берегу'.
-
-                        Rule(действие(
-                                перевозит(фермер, X, ОдинБерег, ДругойБерег), 
-                                фрагментСостояния(List(находится(фермер, ОдинБерег), находится(X, ОдинБерег))),
-                                фрагментСостояния(List(находится(фермер, ДругойБерег), находится(X, ДругойБерег)))),
-                            перевозимоеCущество(X),
-                            берег(река, ОдинБерег),
-                            берег(река, ДругойБерег),
-                            NotEqual(ОдинБерег, ДругойБерег)),
+                % перевозимые существа это волк, коза и капуста 
+                    перевозимоеCущество(волк).
+                    перевозимоеCущество(коза).
+                    перевозимоеCущество(капуста).
 
 
-                        // % Действие 'фермер переправляется на другой берег' переводит из состояния 
-                        // % 'фермер находится на одном берегу' в состояние 
-                        // % 'фермер находится на другом берегу'.
+                % Воздействия
+                % ===========
 
-                        Rule(действие(
-                                переправляется(фермер, ОдинБерег, ДругойБерег),
-                                фрагментСостояния(List(находится(фермер, ОдинБерег))),
-                                фрагментСостояния(List(находится(фермер, ДругойБерег)))),
-                            берег(река, ОдинБерег),
-                            берег(река, ДругойБерег),
-                            NotEqual(ОдинБерег, ДругойБерег)),
+                % Действие 'фермер перевозит перевозимое существо на другой берег' переводит из состояния 
+                % 'фермер и перевозимое существо находятся на одном берегу' в состояние 
+                % 'фермер и перевозимое существо находятся на другом берегу'.
 
-
-                        // % Граничные условия
-                        // % =================
-                        
-                        // % в момент начала миссии фермер, волк, коза и капуста находятся на левом берегу реки
-
-                        Fact(начальноеСостояние(
-                            List(находится(волк, левый),
-                                находится(коза, левый),
-                                находится(капуста, левый),
-                                находится(фермер, левый)))),
+                действие(
+                        перевозит(фермер, Х, ОдинБерег, ДругойБерег), 
+                        фрагментСостояния([находится(фермер, ОдинБерег), находится(Х, ОдинБерег)]),
+                        фрагментСостояния([находится(фермер, ДругойБерег), находится(Х, ДругойБерег)])) :-
+                    перевозимоеCущество(Х),
+                    берег(река, ОдинБерег),
+                    берег(река, ДругойБерег),
+                    ОдинБерег \= ДругойБерег.
 
 
-                        // % Правила
-                        // % =======
+                % Действие 'фермер переправляется на другой берег' переводит из состояния 
+                % 'фермер находится на одном берегу' в состояние 
+                % 'фермер находится на другом берегу'.
 
-                        // % если волк и коза находятся на одном берегу реки, а фермер находится на другом берегу реки,
-                        // % то миссия заканчивается неудачей с формулировкой 'волк съел козу'
-
-                        Rule(конечноеСостояние(
-                            Atom("волк съел козу"),                          
-                            List(
-                                находится(волк, ОдинБерег),
-                                находится(коза, ОдинБерег),
-                                находится(фермер, ДругойБерег))),
-                            берег(река, ОдинБерег),
-                            берег(река, ДругойБерег),
-                            NotEqual(ОдинБерег, ДругойБерег)),
-
-                        // % если коза и капуста находятся на одном берегу реки, а фермер находится на другом берегу реки,
-                        // % то миссия заканчивается неудачей с формулировкой 'коза съела капусту'
-
-                        Rule(конечноеСостояние(
-                            Atom("коза съела капусту"),
-                            List(
-                                находится(коза, ОдинБерег),
-                                находится(капуста, ОдинБерег),
-                                находится(фермер, ДругойБерег))),
-                            берег(река, ОдинБерег),
-                            берег(река, ДругойБерег),
-                            NotEqual(ОдинБерег, ДругойБерег)),
-
-                        // % если волк, коза и капуста находятся на правом берегу реки, то миссия заканчивается успехом
-
-                        Fact(конечноеСостояние(
-                            Atom("миссия заканчивается успехом"),
-                            List(
-                                находится(волк, правый),
-                                находится(коза, правый),
-                                находится(капуста, правый),
-                                находится(фермер, правый)))),
+                действие(
+                        переправляется(фермер, ОдинБерег, ДругойБерег),
+                        фрагментСостояния([находится(фермер, ОдинБерег)]),
+                        фрагментСостояния([находится(фермер, ДругойБерег)])) :-
+                    берег(река, ОдинБерег),
+                    берег(река, ДругойБерег),
+                    ОдинБерег \= ДругойБерег.
 
 
-                        // % Стандартные предикаты для поиска путей в пространстве состояний.
+                % Граничные условия
+                % =================
+                
+                % в момент начала миссии фермер, волк, коза и капуста находятся на левом берегу реки
 
-                        Rule(выполнимо(ТекущееПолноеСостояние, Действие, ФрагментСостоянияДо, ФрагментСостоянияПосле, ПолноеСостояниеПосле),
-                            действие(Действие, фрагментСостояния(ФрагментСостоянияДо), фрагментСостояния(ФрагментСостоянияПосле)),
-                            Subset(ФрагментСостоянияДо, ТекущееПолноеСостояние),
-                            Subtract(ТекущееПолноеСостояние, ФрагментСостоянияДо, Y),
-                            Append(Y, ФрагментСостоянияПосле, Z),
-                            Sort(Z, ПолноеСостояниеПосле)),
-
-                        Rule(unwantedFinalState(ExpectedFinalStateName, CurrentState),
-                            конечноеСостояние(X, ConcreteFinalState),
-                            NotEqual(X, ExpectedFinalStateName),
-                            Subset(ConcreteFinalState, CurrentState)),
-
-                        Rule(solve(InitialState, FinalStateName, FinalState, Solution),
-                            Sort(InitialState, SortedInitialState),
-                            Sort(FinalState, SortedFinalState),
-                            breadthFirst(List(SortedInitialState), EmptyList, SortedFinalState, FinalStateName, Result), 
-                            Flatten(Result, FlattenedResult),
-                            listFullFinalStates(FinalState, FlattenedResult, MatchingFullFinalStates),
-                            buildPath(SortedInitialState, MatchingFullFinalStates, FlattenedResult, ReversedPath),
-                            Reverse(ReversedPath, Solution)),
-
-                        Rule(breadthFirst(EmptyList, _, _, _, _), 
-                            Fail),
-
-                        Rule(breadthFirst(Dot(Finish, _), _, FinishSubset, _, EmptyList),
-                            Subset(FinishSubset, Finish)),
-
-                        Rule(breadthFirst(Dot(H, QueueAdded), QueueProcessed, Finish, FinalStateName, List(ConnectingEdges, Res)), 
-                            adjacentNodes(H, FinalStateName, Adjacents),
-                            dictionaryRemoveKeys(Adjacents, QueueAdded, Temp1),
-                            dictionaryRemoveKeys(Temp1, QueueProcessed, Temp2),
-                            buildConnectingEdges(H, Temp2, ConnectingEdges),
-                            dictionaryKeys(Temp2, StatesReachableIn1Step),
-                            Append(QueueAdded, StatesReachableIn1Step, ExtendedQueueAdded),
-                            breadthFirst(ExtendedQueueAdded, Dot(H, QueueProcessed), Finish, FinalStateName, Res)),
-
-                        Rule(adjacentNodes(H, FinalStateName, Adjacents),
-                            FindAll(pair(NewState, Action), canMoveToNewState(H, FinalStateName, NewState, Action), Adjacents)),
-
-                        Rule(canMoveToNewState(State, FinalStateName, State1, Действие),
-                            выполнимо(State, Действие, _, _, State1),
-                            Not(unwantedFinalState(FinalStateName, State1))),
-
-                        Fact(buildConnectingEdges(_, EmptyList, EmptyList)),
-                        Rule(buildConnectingEdges(From, Dot(pair(To, Action), Tail), Dot(pair(edge(From, To), Action), Result)),
-                            buildConnectingEdges(From, Tail, Result)),
-
-                        Rule(buildPath(Start, FullFinalStates, Edges, List(pair(edge(Start, Finish), Action))),
-                            Member(Finish, FullFinalStates),
-                            Member(pair(edge(Start, Finish), Action), Edges)),
-                        Rule(buildPath(Start, FullFinalStates, Edges, Dot(pair(edge(X, Finish), Action), Path)),
-                            Member(Finish, FullFinalStates),
-                            Member(pair(edge(X, Finish), Action), Edges),
-                            buildPath1(Start, X, Edges, Path)),
-
-                        Rule(buildPath1(Start, Finish, Edges, List(pair(edge(Start, Finish), Action))),
-                            Member(pair(edge(Start, Finish), Action), Edges)),
-                        Rule(buildPath1(Start, Finish, Edges, Dot(pair(edge(X, Finish), Action), Path)),
-                            Member(pair(edge(X, Finish), Action), Edges),
-                            buildPath1(Start, X, Edges, Path)),
-
-                        Rule(listFullFinalStates(FinalState, Dot(pair(edge(_, Finish), _), Edges), Dot(Finish, Result)),
-                            Subset(FinalState, Finish),
-                            listFullFinalStates(FinalState, Edges, Result),
-                            Cut),
-                        Rule(listFullFinalStates(FinalState, Dot(_, Edges), Result),
-                            listFullFinalStates(FinalState, Edges, Result)),
-                        Fact(listFullFinalStates(_, EmptyList, EmptyList)),
+                начальноеСостояние(
+                        [находится(волк, левый),
+                        находится(коза, левый),
+                        находится(капуста, левый),
+                        находится(фермер, левый)]).
 
 
-                        Rule(dictionaryKeys(Dot(pair(Key, _), Dictionary), Dot(Key, Keys)),
-                            dictionaryKeys(Dictionary, Keys)),
-                        Fact(dictionaryKeys(EmptyList, EmptyList)),
+                % Правила
+                % =======
 
-                        Rule(dictionaryValues(Dot(pair(_, Value), Dictionary), Dot(Value, Values)),
-                            dictionaryValues(Dictionary, Values)),
-                        Fact(dictionaryValues(EmptyList, EmptyList)),
+                % если волк и коза находятся на одном берегу реки, а фермер находится на другом берегу реки,
+                % то миссия заканчивается неудачей с формулировкой 'волк съел козу'
 
-                        Rule(dictionaryRemoveKeys(Dot(pair(Key, _), Dictionary), Keys, Dictionary1),
-                            Member(Key, Keys), 
-                            dictionaryRemoveKeys(Dictionary, Keys, Dictionary1),
-                            Cut),
-                        Rule(dictionaryRemoveKeys(Dot(X, Dictionary), Keys, Dot(X, Dictionary1)),
-                            dictionaryRemoveKeys(Dictionary, Keys, Dictionary1)),
-                        Fact(dictionaryRemoveKeys(EmptyList, _, EmptyList))
-                    };
+                конечноеСостояние(
+                    'волк съел козу',                          
+                    [находится(волк, ОдинБерег),
+                    находится(коза, ОдинБерег),
+                    находится(фермер, ДругойБерег)]) :-
+                    берег(река, ОдинБерег),
+                    берег(река, ДругойБерег),
+                    ОдинБерег \= ДругойБерег.    
+                    
+
+
+                % если коза и капуста находятся на одном берегу реки, а фермер находится на другом берегу реки,
+                % то миссия заканчивается неудачей с формулировкой 'коза съела капусту'
+
+                конечноеСостояние(
+                    'коза съела капусту',
+                    [находится(коза, ОдинБерег),
+                    находится(капуста, ОдинБерег),
+                    находится(фермер, ДругойБерег)]) :-
+                    берег(река, ОдинБерег),
+                    берег(река, ДругойБерег),
+                    ОдинБерег \= ДругойБерег.
+
+                % если волк, коза и капуста находятся на правом берегу реки, то миссия заканчивается успехом
+
+                конечноеСостояние(
+                    'миссия заканчивается успехом',
+                    [находится(волк, правый),
+                    находится(коза, правый),
+                    находится(капуста, правый),
+                    находится(фермер, правый)]).
+
+
+                % Стандартные предикаты для поиска путей в пространстве состояний.
+
+                выполнимо(ТекущееПолноеСостояние, Действие, ФрагментСостоянияДо, ФрагментСостоянияПосле, ПолноеСостояниеПосле) :-
+                    действие(Действие, фрагментСостояния(ФрагментСостоянияДо), фрагментСостояния(ФрагментСостоянияПосле)),
+                    subset(ФрагментСостоянияДо, ТекущееПолноеСостояние),
+                    subtract(ТекущееПолноеСостояние, ФрагментСостоянияДо, Y),
+                    append(Y, ФрагментСостоянияПосле, Z),
+                    sort(Z, ПолноеСостояниеПосле).
+
+                unwantedFinalState(ExpectedFinalStateName, CurrentState) :-
+                    конечноеСостояние(X, ConcreteFinalState),
+                    X \= ExpectedFinalStateName,
+                    subset(ConcreteFinalState, CurrentState).
+
+                solve(InitialState, FinalStateName, FinalState, Solution) :-
+                    sort(InitialState, SortedInitialState),
+                    sort(FinalState, SortedFinalState),
+                    breadthFirst([SortedInitialState], [], SortedFinalState, FinalStateName, Result), 
+                    flatten(Result, FlattenedResult),
+                    listFullFinalStates(FinalState, FlattenedResult, MatchingFullFinalStates),
+                    buildPath(SortedInitialState, MatchingFullFinalStates, FlattenedResult, ReversedPath),
+                    reverse(ReversedPath, Solution).
+
+                breadthFirst([], _, _, _, _) :- 
+                    fail.
+
+                breadthFirst([Finish | _], _, FinishSubset, _, []) :- 
+                    subset(FinishSubset, Finish).
+
+                breadthFirst([H | QueueAdded], QueueProcessed, Finish, FinalStateName, [ConnectingEdges, Res]) :- 
+                    adjacentNodes(H, FinalStateName, Adjacents),
+                    dictionaryRemoveKeys(Adjacents, QueueAdded, Temp1),
+                    dictionaryRemoveKeys(Temp1, QueueProcessed, Temp2),
+                    buildConnectingEdges(H, Temp2, ConnectingEdges),
+                    dictionaryKeys(Temp2, StatesReachableIn1Step),
+                    append(QueueAdded, StatesReachableIn1Step, ExtendedQueueAdded),
+                    breadthFirst(ExtendedQueueAdded, [H | QueueProcessed], Finish, FinalStateName, Res).
+
+                adjacentNodes(H, FinalStateName, Adjacents) :-
+                    findall(pair(NewState, Action), canMoveToNewState(H, FinalStateName, NewState, Action), Adjacents).
+
+                canMoveToNewState(State, FinalStateName, State1, Действие) :-
+                    выполнимо(State, Действие, _, _, State1),
+                    not(unwantedFinalState(FinalStateName, State1)).
+
+                buildConnectingEdges(_, [], []).
+                buildConnectingEdges(From, [pair(To, Action) | Tail], [pair(edge(From, To), Action) | Result]) :- 
+                    buildConnectingEdges(From, Tail, Result).
+
+                buildPath(Start, FullFinalStates, Edges, [pair(edge(Start, Finish), Action)]) :-
+                    member(Finish, FullFinalStates),
+                    member(pair(edge(Start, Finish), Action), Edges).
+                buildPath(Start, FullFinalStates, Edges, [pair(edge(X, Finish), Action) | Path]) :-
+                    member(Finish, FullFinalStates),
+                    member(pair(edge(X, Finish), Action), Edges),
+                    buildPath1(Start, X, Edges, Path).
+
+                buildPath1(Start, Finish, Edges, [pair(edge(Start, Finish), Action)]) :-
+                    member(pair(edge(Start, Finish), Action), Edges).
+                buildPath1(Start, Finish, Edges, [pair(edge(X, Finish), Action) | Path]) :-
+                    member(pair(edge(X, Finish), Action), Edges),
+                    buildPath1(Start, X, Edges, Path).
+
+                listFullFinalStates(FinalState, [pair(edge(_, Finish), _) | Edges], [Finish | Result]) :-
+                    subset(FinalState, Finish),
+                    listFullFinalStates(FinalState, Edges, Result),
+                    !.
+                listFullFinalStates(FinalState, [_ | Edges], Result) :-
+                    listFullFinalStates(FinalState, Edges, Result).
+                listFullFinalStates(_, [], []).
+
+
+                dictionaryKeys([pair(Key, _) | Dictionary], [Key | Keys]) :- 
+                    dictionaryKeys(Dictionary, Keys).
+                dictionaryKeys([], []).
+
+                dictionaryValues([pair(_, Value) | Dictionary], [Value | Values]) :- 
+                    dictionaryValues(Dictionary, Values).
+                dictionaryValues([], []).
+
+                dictionaryRemoveKeys([pair(Key, _) | Dictionary], Keys, Dictionary1) :- 
+                    member(Key, Keys), 
+                    dictionaryRemoveKeys(Dictionary, Keys, Dictionary1),
+                    !.
+                dictionaryRemoveKeys([X | Dictionary], Keys, [X | Dictionary1]) :- 
+                    dictionaryRemoveKeys(Dictionary, Keys, Dictionary1).
+                dictionaryRemoveKeys([], _, []).";
 
             var situations = new[]
             {
@@ -403,14 +395,15 @@ namespace Prolog.Tests
                         DesiredFinalState: "миссия заканчивается успехом", 
                         ExpectedSolutions: new[] 
                         {
-                            List(
+                            @"[
                                 перевозит(фермер, коза, левый, правый), 
                                 переправляется(фермер, правый, левый), 
                                 перевозит(фермер, волк, левый, правый), 
                                 перевозит(фермер, коза, правый, левый), 
                                 перевозит(фермер, капуста, левый, правый), 
                                 переправляется(фермер, правый, левый), 
-                                перевозит(фермер, коза, левый, правый)) 
+                                перевозит(фермер, коза, левый, правый)
+                              ]"
                         }
                     ),
 
@@ -419,12 +412,13 @@ namespace Prolog.Tests
                         DesiredFinalState: "волк съел козу",
                         ExpectedSolutions: new[] 
                         {
-                            List(перевозит(фермер, капуста, левый, правый)),
-                            List(
+                            "[перевозит(фермер, капуста, левый, правый)]",
+                            @"[
                                 перевозит(фермер, коза, левый, правый), 
                                 переправляется(фермер, правый, левый), 
                                 перевозит(фермер, волк, левый, правый), 
-                                переправляется(фермер, правый, левый))
+                                переправляется(фермер, правый, левый)
+                              ]"
                         }
                     ),
 
@@ -433,12 +427,13 @@ namespace Prolog.Tests
                         DesiredFinalState: "коза съела капусту",
                         ExpectedSolutions: new[] 
                         {
-                            List(перевозит(фермер, волк, левый, правый)),
-                            List(
+                            "[перевозит(фермер, волк, левый, правый)]",
+                            @"[
                                 перевозит(фермер, коза, левый, правый), 
                                 переправляется(фермер, правый, левый), 
                                 перевозит(фермер, капуста, левый, правый), 
-                                переправляется(фермер, правый, левый))
+                                переправляется(фермер, правый, левый)
+                            ]"
                         }
                     )
             };
@@ -447,15 +442,12 @@ namespace Prolog.Tests
                     (
                         s.Description,
                         program,
-                        new[] 
-                        { 
-                            начальноеСостояние(InitialState), 
-                            Equal(FinalStateName, Atom(s.DesiredFinalState)),
-                            конечноеСостояние(FinalStateName, FinalState), 
-                            solve(InitialState, FinalStateName, FinalState, Solution), 
-                            dictionaryValues(Solution, Route) 
-                        },
-                        System.Array.ConvertAll(s.ExpectedSolutions, es => new V { [Route] = es })
+                        @"начальноеСостояние(InitialState),
+                            FinalStateName = '" + s.DesiredFinalState + @"',
+                            конечноеСостояние(FinalStateName, FinalState),
+                            solve(InitialState, FinalStateName, FinalState, Solution),
+                            dictionaryValues(Solution, Route)",
+                        System.Array.ConvertAll(s.ExpectedSolutions, es => new V { ["Route"] = es })
                     )),
                 ignoreUnexpectedActualInstantiations: true);
         }

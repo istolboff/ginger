@@ -5,4 +5,19 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <PackageReference Include="JetBrains.Annotations" Version="2020.3.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>Prolog.Tests</_Parameter1>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>Ginger.Runner</_Parameter1>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>Ginger.Tests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>  
 </Project>

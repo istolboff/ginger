@@ -5,6 +5,8 @@ using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Prolog.Engine;
 
+using static Prolog.Engine.DomainApi;
+using static Prolog.Engine.PrologParser;
 using static Prolog.Tests.VerboseReporting;
 
 using V = System.Collections.Generic.Dictionary<Prolog.Engine.Variable, Prolog.Engine.Term>;
@@ -38,9 +40,29 @@ namespace Prolog.Tests
                 System.IO.File.AppendAllText(_traceFilePath, Dump(@this));
                 System.IO.File.AppendAllLines(_traceFilePath, new[] { string.Empty });
             };
+
+            PrologParser.ParsingEvent += text => System.IO.File.AppendAllLines(_traceFilePath, new[] { text });
         }
 
         protected static void CheckSituations(
+            IEnumerable<(string Description, string Program, string Query, Dictionary<string, string>[] ExpectedProofs)> situations,
+            bool onlyFirstSolution = false,
+            bool ignoreUnexpectedActualInstantiations = false)
+        {
+            CheckSituations(situations.Select(s => 
+                (
+                    s.Description, 
+                    ParseProgram(s.Program).ToArray(), 
+                    ParseQuery(s.Query).Single().ToArray(),
+                    s.ExpectedProofs
+                        .Select(ep => ep.ToDictionary(kvp => Variable(kvp.Key), kvp => ParseTerm(kvp.Value)))
+                        .ToArray()
+                )),
+                onlyFirstSolution,
+                ignoreUnexpectedActualInstantiations);
+        }
+
+        private static void CheckSituations(
             IEnumerable<(string Description, Rule[] Program, ComplexTerm[] Query, V[] ExpectedProofs)> situations,
             bool onlyFirstSolution = false,
             bool ignoreUnexpectedActualInstantiations = false)

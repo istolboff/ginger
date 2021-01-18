@@ -447,3 +447,6 @@ GrammarEngine-master.zip
 
 # vscode settings
 .vscode/
+
+# SpecFlow code-behind
+*.feature.cs

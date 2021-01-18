@@ -2,10 +2,11 @@ using System;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Prolog.Engine;
-using static Prolog.Engine.DomainApi;
-using static Prolog.Tests.StockTerms;
 
 using V = System.Collections.Generic.Dictionary<Prolog.Engine.Variable, Prolog.Engine.Term>;
+
+using static Prolog.Engine.DomainApi;
+using static Prolog.Engine.PrologParser;
 
 namespace Prolog.Tests
 {
@@ -70,60 +71,60 @@ namespace Prolog.Tests
                 {
                     new 
                     {
-                        ExpectedUnification = Unification.Success(X, atom),
+                        ExpectedUnification = Unification.Success(X, Atom("atom")),
                         TermPairs = new[]
                             {
-                                new[] { line(X), line(atom) },
-                                new[] { line(X, Something), line(atom, Something) },
-                                new[] { line(Something, X), line(Something, atom) },
-                                new[] { line(Something, X, SomethingElse), line(Something, atom, SomethingElse) }
+                                ("line(X)", "line(atom)"),
+                                ("line(X, Something)", "line(atom, Something)"),
+                                ("line(Something, X)", "line(Something, atom)"),
+                                ("line(Something, X, SomethingElse)", "line(Something, atom, SomethingElse)")
                             }
                     },
 
                     new 
                     {
-                        ExpectedUnification = Unification.Success(new V { [X] = atom, [Y] = one }),
+                        ExpectedUnification = Unification.Success(new V { [X] = Atom("atom"), [Y] = Number(1) }),
                         TermPairs = new[]
                             {
-                                new[] { line(X, one), line(atom, Y) },
-                                new[] { line(Something, X, one), line(Something, atom, Y) },
-                                new[] { line(X, Something, one), line(atom, Something, Y) },
-                                new[] { line(X, one, Something), line(atom, Y, Something) },
-                                new[] { line(Something, X, one, SomethingElse), line(Something, atom, Y, SomethingElse) },
+                                ("line(X, 1)", "line(atom, Y)"),
+                                ("line(Something, X, 1)", "line(Something, atom, Y)"),
+                                ("line(X, Something, 1)", "line(atom, Something, Y)"),
+                                ("line(X, 1, Something)", "line(atom, Y, Something)"),
+                                ("line(Something, X, 1, SomethingElse)", "line(Something, atom, Y, SomethingElse)")
                             }
                     },
 
                     new
                     {
-                        ExpectedUnification = Unification.Success(X, atom),
+                        ExpectedUnification = Unification.Success(X, Atom("atom")),
                         TermPairs = new[]
                             {
-                                new[] { line(point(X)), line(point(atom)) },
-                                new[] { line(point(X), Something), line(point(atom), Something) },
-                                new[] { line(Something, point(X)), line(Something, point(atom)) },
-                                new[] { line(Something, point(X), SomethingElse), line(Something, point(atom), SomethingElse) },
+                                ("line(point(X))", "line(point(atom))"),
+                                ("line(point(X), Something)", "line(point(atom), Something)"),
+                                ("line(Something, point(X))", "line(Something, point(atom))"),
+                                ("line(Something, point(X), SomethingElse)", "line(Something, point(atom), SomethingElse)"),
 
-                                new[] { line(point(X, Something)), line(point(atom, Something)) },
-                                new[] { line(point(Something, X)), line(point(Something, atom)) },
-                                new[] { line(point(Something, X, SomethingElse)), line(point(Something, atom, SomethingElse)) }
+                                ("line(point(X, Something))", "line(point(atom, Something))"),
+                                ("line(point(Something, X))", "line(point(Something, atom))"),
+                                ("line(point(Something, X, SomethingElse))", "line(point(Something, atom, SomethingElse))")
                             }
                     },
 
                     new
                     {
-                        ExpectedUnification = Unification.Success(X, point(atom)),
+                        ExpectedUnification = Unification.Success(X, ParseTerm("point(atom)")),
                         TermPairs = new[]
                             {
-                                new[] { line(X), line(point(atom)) },
-                                new[] { line(X, Something), line(point(atom), Something) },
-                                new[] { line(Something, X), line(Something, point(atom)) },
-                                new[] { line(Something, X, SomethingElse), line(Something, point(atom), SomethingElse) }
+                                ("line(X)", "line(point(atom))"),
+                                ("line(X, Something)", "line(point(atom), Something)"),
+                                ("line(Something, X)", "line(Something, point(atom))"),
+                                ("line(Something, X, SomethingElse)", "line(Something, point(atom), SomethingElse)")
                             }
                     }
                 }
                 from termPair in test.TermPairs
-                from arguments in new[] { (termPair[0], termPair[1]), (termPair[1], termPair[0]) }
-                let unification = Unification.CarryOut(arguments.Item1, arguments.Item2)
+                from arguments in new[] { termPair, (termPair.Item2, termPair.Item1) }
+                let unification = Unification.CarryOut(ParseTerm(arguments.Item1), ParseTerm(arguments.Item2))
                 where !unification.Succeeded || !unification.Equals(test.ExpectedUnification)
                 select new { arguments.Item1, arguments.Item2, test.ExpectedUnification, ActualUnification = unification })
                 .ToList();
@@ -138,24 +139,24 @@ namespace Prolog.Tests
                 (from termPair in new[]
                 {
                     // incompatible functors
-                    new[] { line(X), point(atom) },
-                    new[] { line(X, Something), point(atom, Something) },
-                    new[] { line(Something, X), point(Something, atom) },
-                    new[] { line(Something, X, SomethingElse), point(Something, atom, SomethingElse) },
+                    ("line(X)", "point(atom)"),
+                    ("line(X, Something)", "point(atom, Something)"),
+                    ("line(Something, X)", "point(Something, atom)"),
+                    ("line(Something, X, SomethingElse)", "point(Something, atom, SomethingElse)"),
 
                     // incompatible arity
-                    new[] { line(X), line(atom, Something) },
-                    new[] { line(X, Something), line(atom) },
-                    new[] { line(Something, X), line(atom) },
-                    new[] { line(Something, X, SomethingElse), line(Something, atom) },
+                    ("line(X)", "line(atom, Something)"),
+                    ("line(X, Something)", "line(atom)"),
+                    ("line(Something, X)", "line(atom)"),
+                    ("line(Something, X, SomethingElse)", "line(Something, atom)"),
 
                     //  variable instantiations are incompatible
-                    new[] { line(X, X), line(atom, one) },
-                    new[] { line(point(X), X), line(point(atom), one) },
-                    new[] { line(X, point(X)), line(one, point(atom)) }
+                    ("line(X, X)", "line(atom, one)"),
+                    ("line(point(X), X)", "line(point(atom), one)"),
+                    ("line(X, point(X))", "line(one, point(atom))")
                 }
-                from arguments in new[] { (termPair[0], termPair[1]), (termPair[1], termPair[0]) }
-                let unification = Unification.CarryOut(arguments.Item1, arguments.Item2)
+                from arguments in new[] { termPair, (termPair.Item2, termPair.Item1) }
+                let unification = Unification.CarryOut(ParseTerm(arguments.Item1), ParseTerm(arguments.Item2))
                 where unification.Succeeded
                 select new { Arguments = arguments, Unification = unification })
                 .ToList();
@@ -171,21 +172,26 @@ namespace Prolog.Tests
                 {
                     new 
                     { 
-                        ExpectedUnification = Unification.Success(new V { [X] = X1, [Y] = atom, [Z] = one }),
-                        TermPair = (date(X, Y, one), date(X1, atom, Z))
+                        ExpectedUnification = Unification.Success(new V { [X] = X1, [Y] = Atom("atom"), [Z] = Number(1) }),
+                        TermPair = ("date(X, Y, 1)", "date(X1, atom, Z)")
                     },
                     new
                     {
                         ExpectedUnification = Unification.Failure,
-                        TermPair = (point(one, X), point(X, two))
+                        TermPair = ("point(1, X)", "point(X, 2)")
                     }
                 }
-                let unification = Unification.CarryOut(test.TermPair.Item1, test.TermPair.Item2)
+                let unification = Unification.CarryOut(ParseTerm(test.TermPair.Item1), ParseTerm(test.TermPair.Item2))
                 where !unification.Equals(test.ExpectedUnification)
                 select new { test.TermPair.Item1, test.TermPair.Item2, test.ExpectedUnification, ActualUnification = unification })
                 .ToList();
 
             Assert.IsFalse(wrongUnifications.Any(), string.Join(Environment.NewLine, wrongUnifications));
         }
+
+        private static readonly Variable X = new ("X", false);
+        private static readonly Variable X1 = new ("X1", false);
+        private static readonly Variable Y = new ("Y", false);
+        private static readonly Variable Z = new ("Z", false);
     }
 }

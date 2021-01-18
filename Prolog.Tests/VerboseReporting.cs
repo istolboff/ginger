@@ -20,6 +20,7 @@ namespace Prolog.Tests
                 ComplexTerm cutOrFail when cutOrFail == Builtin.Cut || cutOrFail == Builtin.Fail => cutOrFail.Functor.Name,
                 ComplexTerm list when list.IsList() => "[" + string.Join(", ", IterableList(list, strictMode: false).Select(t => Dump(t))) + "]",
                 ComplexTerm complexTerm => $"{complexTerm.Functor.Name}({string.Join(',', complexTerm.Arguments.Select(a => Dump(a, enumSeparator)))})",
+                Rule fact when !fact.Premises.Any() => $"{Dump(fact.Conclusion)}.",
                 Rule rule => $"{Dump(rule.Conclusion, enumSeparator)}:-{string.Join(',', rule.Premises.Select(p => Dump(p, enumSeparator)))}",
                 UnificationResult unificationResult => unificationResult.Succeeded ? "success(" +  string.Join(" & ",unificationResult.Instantiations.Select(i => $"{Dump(i.Key, enumSeparator)} = {Dump(i.Value, enumSeparator)}")) + ")" : "no unification possible",
                 IReadOnlyDictionary<Variable, Term> variableInstantiations => string.Join(", ", variableInstantiations.Select(kvp => $"[{Dump(kvp.Key)}] = {Dump(kvp.Value)}")),

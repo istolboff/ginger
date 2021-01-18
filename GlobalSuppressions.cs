@@ -10,3 +10,5 @@
 [module: SuppressMessage("StyleCop.CSharp.ReadabilityRules", "SA1413:Use trailing comma in multi-line initializers", Justification = "Reviewd.")]
 [module: SuppressMessage("StyleCop.CSharp.ReadabilityRules", "SA1101:PrefixLocalCallsWithThis", Justification = "Reviewed.")]
 [module: SuppressMessage("StyleCop.CSharp.SpacingRules", "SA1009:ClosingParenthesisMustBeSpacedCorrectly", Justification = "Reviewed.")]
+[module: SuppressMessage("Microsoft.Design", "CA1062", Justification = "Reviewed.")]
+[module: SuppressMessage("Microsoft.Design", "CA1716", Justification = "Reviewed.")]

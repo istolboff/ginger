@@ -19,31 +19,37 @@ namespace Prolog.Engine
 
         public static readonly Functor CallFunctor = Functor("call", 1);
 
-        public static readonly ComplexTermFactory Equal = StandardPredicate(
+        public static ComplexTerm Dot(Term head, Term tail) =>
+            ComplexTerm(DotFunctor, head, tail);
+
+        public static ComplexTerm Call(Term callee) =>
+            ComplexTerm(CallFunctor, callee);
+
+        private static readonly ComplexTermFactory Equal = StandardPredicate(
             "=", 
             Unification.CarryOut);
 
-        public static readonly ComplexTermFactory NotEqual = StandardPredicate(
+        private static readonly ComplexTermFactory NotEqual = StandardPredicate(
             @"\=", 
             (left, right) => Unification.Result(!Unification.CarryOut(left, right).Succeeded));
 
-        public static readonly ComplexTermFactory GreaterThan = StandardPredicate(
+        private static readonly ComplexTermFactory GreaterThan = StandardPredicate(
             ">",
             (left, right) => Unification.Result(StandardOrderOfTerms.Default.Compare(left, right) > 0));
 
-        public static readonly ComplexTermFactory GreaterThanOrEqual = StandardPredicate(
+        private static readonly ComplexTermFactory GreaterThanOrEqual = StandardPredicate(
             ">=", 
             (left, right) => Unification.Result(StandardOrderOfTerms.Default.Compare(left, right) >= 0));
 
-        public static readonly ComplexTermFactory LessThan = StandardPredicate(
+        private static readonly ComplexTermFactory LessThan = StandardPredicate(
             "<", 
             (left, right) => Unification.Result(StandardOrderOfTerms.Default.Compare(left, right) < 0));
 
-        public static readonly ComplexTermFactory LessThanOrEqual = StandardPredicate(
+        private static readonly ComplexTermFactory LessThanOrEqual = StandardPredicate(
             "<", 
             (left, right) => Unification.Result(StandardOrderOfTerms.Default.Compare(left, right) <= 0));
 
-        public static readonly ComplexTermFactory Subset = StandardPredicate(
+         private static readonly ComplexTermFactory Subset = StandardPredicate(
             "subset",
             (subset, set) =>
                 (subset, set) switch 
@@ -67,7 +73,7 @@ namespace Prolog.Engine
                     _ => throw TypeError("both parameters of 'subset' predicate should be lists")
                 });
 
-        public static readonly ComplexTermFactory Subtract = StandardPredicate(
+        private static readonly ComplexTermFactory Subtract = StandardPredicate(
             "subtract",
             (set, delete, result) => 
                 (set, delete, result) switch 
@@ -90,17 +96,17 @@ namespace Prolog.Engine
                     _ => throw TypeError("first and second parameters of 'subtract' predicate should be lists, and the third one should be a variable")
                 });
 
-        public static readonly ComplexTermFactory Append = StandardPredicate(
+        private static readonly ComplexTermFactory Append = StandardPredicate(
             "append",
             (set1, set2, set3) =>
                 (set1, set2, set3) switch 
                 {
                     (ComplexTerm set1List, ComplexTerm set2List, Variable set3List) when set1List.IsList() && set2List.IsList() =>
                         Unification.Success(set3List, List(IterableList(set1List).Concat(IterableList(set2List)).Reverse())),
-                    _ => throw TypeError("first and second parameters of 'union' predicate should be lists, and the third one should be a variable")
+                    _ => throw TypeError("first and second parameters of 'append' predicate should be lists, and the third one should be a variable")
                 });
 
-        public static readonly ComplexTermFactory Sort = StandardPredicate(
+        private static readonly ComplexTermFactory Sort = StandardPredicate(
             "sort",
             (list, sorted) =>
                 (list, sorted) switch
@@ -112,7 +118,7 @@ namespace Prolog.Engine
                     _ => throw TypeError("first parameter of 'sort' predicate should be a list, and the second one should be a variable")
                 });
 
-        public static readonly ComplexTermFactory Flatten = StandardPredicate(
+        private static readonly ComplexTermFactory Flatten = StandardPredicate(
             "flatten",
             (nested, flat) =>
                 (nested, flat) switch
@@ -122,7 +128,7 @@ namespace Prolog.Engine
                     _ => throw TypeError("first parameter of 'flatten' predicate should be a list, and the second one should be a variable")
                 });
 
-        public static readonly ComplexTermFactory Reverse = StandardPredicate(
+        private static readonly ComplexTermFactory Reverse = StandardPredicate(
             "reverse",
             (original, reversed) => 
                 (original, reversed) switch
@@ -133,7 +139,7 @@ namespace Prolog.Engine
                 }
         );
 
-        public static readonly ComplexTermFactory FindAll = MetaPredicate( 
+        private static readonly ComplexTermFactory FindAll = MetaPredicate( 
             "findall", 
             (program, obj, goal, list) =>
             {
@@ -146,14 +152,23 @@ namespace Prolog.Engine
                         : List(solutions.Select(s => Proof.ApplyVariableInstantiationsCore(o, s.Instantiations)).ToArray()));
             });
 
-        public static ComplexTerm Dot(Term head, Term tail) =>
-            ComplexTerm(DotFunctor, head, tail);
-
-        public static ComplexTerm Member(Term element, Term list) =>
+        private static ComplexTerm Member(Term element, Term list) =>
             ComplexTerm(Functor("member", 2), element, list);
 
-        public static ComplexTerm Not(Term term) => 
+        private static ComplexTerm Not(Term term) => 
             ComplexTerm(Functor("not", 1), term);
+
+
+        public static readonly IReadOnlyDictionary<string, ComplexTermFactory> BinaryOperators = 
+            new Dictionary<string, ComplexTermFactory>
+            {
+                ["="] = Equal,
+                [@"\="] = NotEqual,
+                ["<"] = LessThan,
+                [">"] = GreaterThan,
+                ["<="] = LessThanOrEqual,
+                [">="] = GreaterThanOrEqual
+            };
 
         public static readonly IReadOnlyCollection<Rule> Rules = new[]
         {
@@ -183,11 +198,23 @@ namespace Prolog.Engine
             Rule(Member(X, Dot(_, T)), Member(X, T)),
         };
 
+        public static readonly FunctorBase[] Functors = new[]
+        {
+            Cut.Functor,
+            Fail.Functor,
+            EmptyList.Functor,
+            DotFunctor,
+            CallFunctor
+        };
+
+        public static ComplexTerm? TryResolveFunctor(ComplexTerm complexTerm) =>
+            Rules
+                .Select(r => r.Conclusion.Functor)
+                .FirstOrDefault(f => f.Name == complexTerm.Functor.Name && f.Arity == complexTerm.Functor.Arity)
+                ?.Apply(f => complexTerm with { Functor = f });
+
         internal static Functor DotFunctor => 
             Functor(".", 2);
-
-        private static ComplexTerm Call(Term callee) =>
-            ComplexTerm(CallFunctor, callee);
 
         private static Rule Introduce(ComplexTermFactory factory) => 
             new (
@@ -195,7 +222,7 @@ namespace Prolog.Engine
                     {
                         2 => factory.Invoke(X, Y),
                         3 => factory.Invoke(X, Y, T),
-                        _ => throw new NotImplementedException("Do not know how to introduce standard functor with artity different from 2 or 3")
+                        _ => throw ProgramLogic.Error("Do not know how to introduce standard functor with artity different from 2 or 3")
                     }, 
                 Premises: new ()
             );

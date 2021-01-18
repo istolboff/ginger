@@ -10,9 +10,7 @@ namespace Prolog.Engine
 
     public sealed record Number(int Value) : Term;
 
-#pragma warning disable CA1801 // Review unused parameters
-    public sealed record Variable(string Name, bool IsTemporary = false) : Term;
-#pragma warning restore CA1801
+    public sealed record Variable(string Name, bool IsTemporary) : Term;
 
     public abstract record FunctorBase(string Name, int Arity);
 
@@ -21,7 +19,7 @@ namespace Prolog.Engine
 #pragma warning disable CA1801 // Review unused parameters
     internal sealed record BinaryPredicate(string Name, int Arity, Func<IReadOnlyList<Term>, UnificationResult> Invoke) : FunctorBase(Name, Arity);
 
-    internal sealed record MetaFunctor(string Name, int Arity, Func<IReadOnlyCollection<Rule>, IReadOnlyList<Term>, UnificationResult> Invoke) : FunctorBase(Name, Arity);
+    internal sealed record MetaFunctor(string Name, int Arity, Func<IReadOnlyDictionary<(string FunctorName, int FunctorArity), IReadOnlyCollection<Rule>>, IReadOnlyList<Term>, UnificationResult> Invoke) : FunctorBase(Name, Arity);
 #pragma warning restore CA1801
 
     public sealed record ComplexTerm(FunctorBase Functor, StructuralEquatableArray<Term> Arguments) : Term;
