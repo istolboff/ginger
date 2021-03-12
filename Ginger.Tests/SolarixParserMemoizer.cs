@@ -4,15 +4,16 @@ using System.Linq;
 using System.Text;
 using System.IO;
 using System.Reflection;
-using Newtonsoft.Json;
-using Ginger.Runner.Solarix;
-using Prolog.Engine;
-
-using static Prolog.Engine.MayBe;
 using System.Text.RegularExpressions;
+using Newtonsoft.Json;
+using Prolog.Engine.Miscellaneous;
+using Ginger.Runner.Solarix;
+
 
 namespace Ginger.Tests
 {
+    using static MayBe;
+
     internal sealed class SolarixParserMemoizer : IRussianGrammarParser
     {
         public SolarixParserMemoizer(IRussianGrammarParser wrappedParser)
@@ -93,6 +94,6 @@ namespace Ginger.Tests
         private readonly IRussianGrammarParser _wrappedParser;
         private readonly IDictionary<string, Lazy<IReadOnlyCollection<SentenceElement>>> _knownSentences;
 
-        private static readonly Regex SpaceRemover = new Regex(@"\s+", RegexOptions.Compiled);
+        private static readonly Regex SpaceRemover = new (@"\s+", RegexOptions.Compiled);
     }
 }

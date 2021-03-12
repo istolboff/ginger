@@ -1,9 +1,9 @@
 using System;
 
-using static Prolog.Engine.Either;
-
-namespace Prolog.Engine
+namespace Prolog.Engine.Miscellaneous
 {
+    using static Either;
+
     internal sealed record Either<TLeft, TRight>(TLeft? Left, TRight? Right, bool IsLeft)
     {
         public TResult Fold<TResult>(Func<TLeft, TResult> getFromLeft, Func<TRight, TResult> getFromRight) =>

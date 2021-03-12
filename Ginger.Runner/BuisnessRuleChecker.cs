@@ -1,12 +1,13 @@
 using System.Collections.Generic;
 using System.Linq;
 using Prolog.Engine;
-
-using static Prolog.Engine.DomainApi;
-using static Prolog.Engine.PrologParser;
+using Prolog.Engine.Miscellaneous;
 
 namespace Ginger.Runner
 {
+    using static DomainApi;
+    using static Prolog.Engine.Parsing.PrologParser;
+
     public static class BuisnessRuleChecker
     {
         public static IReadOnlyCollection<IGrouping<string, TestScenario>> GenerateTestScenarios(

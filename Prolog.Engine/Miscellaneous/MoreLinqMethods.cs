@@ -2,10 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
-using static Prolog.Engine.MayBe;
-
-namespace Prolog.Engine
+namespace Prolog.Engine.Miscellaneous
 {
+    using static MayBe;
+    
     internal static class MoreLinqMethods
     {
         public static IReadOnlyCollection<T> AsImmutable<T>(this IEnumerable<T> @this) =>

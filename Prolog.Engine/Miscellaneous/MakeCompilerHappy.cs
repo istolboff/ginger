@@ -1,7 +1,7 @@
 using System;
 using JetBrains.Annotations;
 
-namespace Prolog.Engine
+namespace Prolog.Engine.Miscellaneous
 {
     internal static class MakeCompilerHappy
     {

@@ -4,15 +4,16 @@ using System.Diagnostics;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Prolog.Engine;
-
-using static Prolog.Engine.DomainApi;
-using static Prolog.Engine.PrologParser;
-using static Prolog.Tests.VerboseReporting;
+using Prolog.Engine.Parsing;
 
 using V = System.Collections.Generic.Dictionary<Prolog.Engine.Variable, Prolog.Engine.Term>;
 
 namespace Prolog.Tests
 {
+    using static DomainApi;
+    using static PrologParser;
+    using static VerboseReporting;
+
     public abstract class ProofTestsBase
     {
 #if UseLogging

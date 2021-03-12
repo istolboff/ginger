@@ -2,15 +2,15 @@ using System;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using TechTalk.SpecFlow;
-using Prolog.Engine;
+using Prolog.Engine.Miscellaneous;
 using Ginger.Runner.Solarix;
 using Ginger.Runner;
 
-using static Prolog.Engine.PrologParser;
-using static Prolog.Tests.VerboseReporting;
-
 namespace Ginger.Tests
 {
+    using static Prolog.Engine.Parsing.PrologParser;
+    using static Prolog.Tests.VerboseReporting;
+    
     [Binding]
 #pragma warning disable CA1812 // Your class is an internal class that is apparently never instantiated on Derived class
     internal sealed class Patterns
@@ -54,7 +54,7 @@ namespace Ginger.Tests
                             .OrElse(false)
                     select new 
                     { 
-                        Sentence = situation.Sentence, 
+                        situation.Sentence, 
                         ExpectedMeaning = Dump(expectedMeaning),
                         ActualMeaning = understoodSentence.Map(r => Dump(r.Meaning)).OrElse("Understanding failed"),
                         ExpectedPatternId = situation.RecognizedWithPattern,
@@ -79,7 +79,7 @@ namespace Ginger.Tests
                     select new 
                     { 
                         Sentence = sentence, 
-                        PatternId = understoodSentence.PatternId, 
+                        understoodSentence.PatternId,
                         Meaning = Dump(understoodSentence.Meaning) 
                     }
                 ).AsImmutable();

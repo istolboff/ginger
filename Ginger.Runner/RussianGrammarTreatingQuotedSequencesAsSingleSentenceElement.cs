@@ -2,14 +2,13 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
+using Prolog.Engine.Miscellaneous;
 using Ginger.Runner.Solarix;
-using Prolog.Engine;
-
-using static Prolog.Engine.Either;
 
 namespace Ginger.Runner
 {
-    using WordOrQuotation = Prolog.Engine.Either<Word, Quotation>;
+    using static Either;
+    using WordOrQuotation = Either<Word, Quotation>;
 
     internal sealed record Quotation(string Content, IReadOnlyList<WordOrQuotation> Children);
 
@@ -72,7 +71,7 @@ namespace Ginger.Runner
                                 sentenceElement.LeafLinkType)))
             ).ToList();
 
-        private static readonly Regex QuotationRecognizer = new Regex(@"'([^']+)'", RegexOptions.Compiled);
+        private static readonly Regex QuotationRecognizer = new (@"'([^']+)'", RegexOptions.Compiled);
 
         private static readonly string[] StockWordsForQuotationSubstitution = new[] 
         {

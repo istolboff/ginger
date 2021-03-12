@@ -3,13 +3,13 @@ using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Prolog.Engine;
 
-using V = System.Collections.Generic.Dictionary<Prolog.Engine.Variable, Prolog.Engine.Term>;
-
-using static Prolog.Engine.DomainApi;
-using static Prolog.Engine.PrologParser;
-
 namespace Prolog.Tests
 {
+    using static DomainApi;
+    using static Prolog.Engine.Parsing.PrologParser;
+
+    using V = System.Collections.Generic.Dictionary<Variable, Term>;
+    
     [TestClass]
     public class UnificationTests
     {

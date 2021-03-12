@@ -50,6 +50,6 @@ namespace Ginger.Runner
 
         private readonly IRussianGrammarParser _grammarParser;
         private readonly SentenceUnderstander _sentenceUnderstander;
-        private readonly List<Rule> _program = new List<Rule>();
+        private readonly List<Rule> _program = new ();
     }
 }

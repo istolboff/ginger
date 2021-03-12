@@ -2,15 +2,15 @@ using System;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using TechTalk.SpecFlow;
+using Prolog.Engine;
 using Ginger.Runner;
 using Ginger.Runner.Solarix;
-using Prolog.Engine;
-
-using static Prolog.Engine.PrologParser;
-using static Ginger.Runner.BuisnessRuleChecker;
 
 namespace Ginger.Tests
 {
+    using static Prolog.Engine.Parsing.PrologParser;
+    using static BuisnessRuleChecker;
+
     [Binding]
 #pragma warning disable CA1812 // Your class is an internal class that is apparently never instantiated on Derived class    
     internal sealed class Sut

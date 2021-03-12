@@ -4,18 +4,20 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using Ginger.Runner.Solarix;
 using Prolog.Engine;
-
-using static Prolog.Engine.MayBe;
-using static Prolog.Engine.MakeCompilerHappy;
-using static Prolog.Engine.MonadicParsing;
-using static Prolog.Engine.PrologParser;
-using static Prolog.Engine.TextParsingPrimitives;
+using Prolog.Engine.Miscellaneous;
+using Prolog.Engine.Parsing;
+using Ginger.Runner.Solarix;
 
 namespace Ginger.Runner
 {
-    using WordOrQuotation = Prolog.Engine.Either<Word, Quotation>;
+    using static MayBe;
+    using static MakeCompilerHappy;
+    using static MonadicParsing;
+    using static PrologParser;
+    using static TextParsingPrimitives;
+
+    using WordOrQuotation = Either<Word, Quotation>;
 
     internal sealed class SentenceUnderstander
     {
@@ -32,9 +34,8 @@ namespace Ginger.Runner
                 .OrElse(None);
 
         public static SentenceUnderstander LoadFromEmbeddedResources(IRussianGrammarParser grammarParser) =>
-            new SentenceUnderstander(
-                ParsePatterns(ReadEmbeddedResource("Ginger.Runner.SentenceUnderstandingRules.txt"), grammarParser)
-                .Select(parsedPattern => PatternBuilder.BuildPattern(
+            new (ParsePatterns(ReadEmbeddedResource("Ginger.Runner.SentenceUnderstandingRules.txt"), grammarParser)
+                 .Select(parsedPattern => PatternBuilder.BuildPattern(
                     parsedPattern.PatternId, 
                     parsedPattern.Pattern, 
                     parsedPattern.Meaning)));

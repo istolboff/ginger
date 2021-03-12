@@ -1,7 +1,7 @@
 using System;
 using JetBrains.Annotations;
 
-namespace Prolog.Engine
+namespace Prolog.Engine.Miscellaneous
 {
     internal static class MayBe
     {
@@ -32,12 +32,14 @@ namespace Prolog.Engine
 #pragma warning disable CA1801 // Review unused parameters
         public static implicit operator MayBe<T>([UsedImplicitly] syntacticshugar_NoneProducer unused) =>
 #pragma warning restore CA1801 
-            new MayBe<T>(default, false);
+            new (default, false);
         
 #pragma warning restore CA2225
     }
 
 #pragma warning disable CA1707 // Remove the underscores from type name
-    internal sealed record syntacticshugar_NoneProducer();
+// ReSharper disable InconsistentNaming
+    internal sealed record syntacticshugar_NoneProducer;
+// ReSharper restore InconsistentNaming    
 #pragma warning restore CA1707
 }

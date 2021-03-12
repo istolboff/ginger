@@ -1,11 +1,10 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 
-using static Prolog.Engine.MayBe;
-
-namespace Prolog.Engine
+namespace Prolog.Engine.Miscellaneous
 {
+    using static MayBe;
+    
     internal static class GeneralExtensions
     {
         public static TResult Apply<T, TResult>(this T @this, Func<T, TResult> f) =>

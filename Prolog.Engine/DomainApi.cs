@@ -1,10 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using static Prolog.Engine.Builtin;
+using Prolog.Engine.Miscellaneous;
 
 namespace Prolog.Engine
 {
+    using static Builtin;
+
     public static class DomainApi
     {
         public delegate ComplexTerm ComplexTermFactory(params Term[] arguments);

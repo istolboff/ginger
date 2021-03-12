@@ -2,12 +2,13 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using Prolog.Engine.Miscellaneous;
 
-using static Prolog.Engine.Either;
-using static Prolog.Engine.MonadicParsing;
-
-namespace Prolog.Engine
+namespace Prolog.Engine.Parsing
 {
+    using static Either;
+    using static MonadicParsing;
+    
     internal static class TextParsingPrimitives
     {
         public static Parser<string> SkipWhitespaces =>
@@ -46,10 +47,6 @@ namespace Prolog.Engine
 
         public static Parser<char> Expect(char ch) =>
             Expect(c => c == ch);
-
-        public static Parser<string> Lexem(Func<char, bool> chars) =>
-            from characters in Repeat(Expect(chars))
-            select string.Join(string.Empty, characters);
 
         public static Parser<string> Lexem(Func<char, bool> firstChar, Func<char, bool> allTheOtherChars) =>
             from firstOne in SkipWhitespaces.Then(Expect(firstChar))
@@ -100,22 +97,21 @@ namespace Prolog.Engine
                                 input))
                 });
 
-        public static Either<ParsingError, Result<char>> Read(TextInput input) =>
+        public static InvalidOperationException ParsingError(string message) => new (message);
+
+        private static Either<ParsingError, Result<char>> Read(TextInput input) =>
             (input.Position < input.Text.Length) switch
             {
                 true => Right(Result(input.Text[input.Position], input.Skip(1))),
                 false => Left(new ParsingError($"Attempt to read past the end of the input '{input.Text}'.", input))
             };
 
-        public static Either<ParsingError, Result<char>> ReadSkippingComment(TextInput input) =>
+        private static Either<ParsingError, Result<char>> ReadSkippingComment(TextInput input) =>
             (input.Position >= input.Text.Length) switch
             {
                 true => Left(new ParsingError($"Attempt to read past the end of the input '{input.Text}'.", input)),
                 false when input.Text[input.Position] != '%' => Right(Result(input.Text[input.Position], input.Skip(1))),
                 _ => Right(Result(' ', input.SkipToEndOfLine()))
             };
-
-        public static InvalidOperationException ParsingError(string message) => 
-            new InvalidOperationException(message);
     }
 }

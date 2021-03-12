@@ -20,22 +20,22 @@ namespace Ginger.Tests
         [BeforeTestRun]
         public static void SetupTestRun()
         {
-            RussianGrammarParser = new SolarixParserMemoizer(new SolarixRussianGrammarEngine());
-            SentenceUnderstander = SentenceUnderstander.LoadFromEmbeddedResources(RussianGrammarParser);
+            _russianGrammarParser = new SolarixParserMemoizer(new SolarixRussianGrammarEngine());
+            _sentenceUnderstander = SentenceUnderstander.LoadFromEmbeddedResources(_russianGrammarParser);
             PatternBuilder.PatternRecognitionEvent += (log, success) => LogPatternRecognitionEvent(log, success);
         }
 
         [AfterTestRun]
         public static void TeardownTestRun()
         {
-            RussianGrammarParser?.Dispose();
+            _russianGrammarParser?.Dispose();
         }
 
         [BeforeScenario]
         public void SetupDiContainer()
         {
-            _diContainer.RegisterInstanceAs(RussianGrammarParser);
-            _diContainer.RegisterInstanceAs(SentenceUnderstander);
+            _diContainer.RegisterInstanceAs(_russianGrammarParser);
+            _diContainer.RegisterInstanceAs(_sentenceUnderstander);
         }
 
         [Conditional("UseLogging")]
@@ -46,7 +46,7 @@ namespace Ginger.Tests
 
         private readonly IObjectContainer _diContainer;
 
-        private static IRussianGrammarParser? RussianGrammarParser;
-        private static SentenceUnderstander? SentenceUnderstander; 
+        private static IRussianGrammarParser? _russianGrammarParser;
+        private static SentenceUnderstander? _sentenceUnderstander; 
    }
 }

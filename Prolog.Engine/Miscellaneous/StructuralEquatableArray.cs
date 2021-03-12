@@ -3,7 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace Prolog.Engine
+namespace Prolog.Engine.Miscellaneous
 {
     public static class StructuralEquatableArray
     {

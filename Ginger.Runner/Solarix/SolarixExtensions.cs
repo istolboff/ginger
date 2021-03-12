@@ -1,4 +1,4 @@
-using Prolog.Engine;
+using Prolog.Engine.Miscellaneous;
 
 namespace Ginger.Runner.Solarix
 {

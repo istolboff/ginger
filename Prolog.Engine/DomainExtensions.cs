@@ -1,12 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-
-using static Prolog.Engine.DomainApi;
-using static Prolog.Engine.MakeCompilerHappy;
+using Prolog.Engine.Miscellaneous;
 
 namespace Prolog.Engine
 {
+    using static DomainApi;
+    using static MakeCompilerHappy;
+
     public static class DomainExtensions
     {
         public static UnificationResult And(this UnificationResult @this, UnificationResult another)

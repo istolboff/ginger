@@ -3,6 +3,8 @@ using SolarixGrammarEngineNET;
 
 namespace Ginger.Runner.Solarix
 {
+// ReSharper disable InconsistentNaming
+// ReSharper disable UnusedMember.Global
     internal enum PartOfSpeech
     {
         Существительное = GrammarEngineAPI.NOUN_ru,
@@ -207,7 +209,7 @@ namespace Ginger.Runner.Solarix
         Компаратив2 = GrammarEngineAPI.LIGHT_COMPAR_FORM_RU
     }
 
-    internal abstract record GrammarCharacteristics();
+    internal abstract record GrammarCharacteristics;
 
 #pragma warning disable CA1801 // Review unused parameters
     internal sealed record AdjectiveCharacteristics(
@@ -216,7 +218,7 @@ namespace Ginger.Runner.Solarix
         Gender? Gender, 
         AdjectiveForm AdjectiveForm, 
         ComparisonForm ComparisonForm) 
-        : GrammarCharacteristics();
+        : GrammarCharacteristics;
 
     internal sealed record VerbCharacteristics(
         Case? Case, 
@@ -226,11 +228,11 @@ namespace Ginger.Runner.Solarix
         VerbAspect VerbAspect, 
         Tense Tense,
         Transitiveness? Transitiveness) 
-        : GrammarCharacteristics();
+        : GrammarCharacteristics;
 
-    internal sealed record AdverbCharacteristics(ComparisonForm ComparisonForm) : GrammarCharacteristics();
+    internal sealed record AdverbCharacteristics(ComparisonForm ComparisonForm) : GrammarCharacteristics;
 
-    internal record NounCharacteristics(Case Case, Number Number, Gender Gender, Form? Form) : GrammarCharacteristics();
+    internal record NounCharacteristics(Case Case, Number Number, Gender Gender, Form? Form) : GrammarCharacteristics;
 
     internal sealed record VerbalNounCharacteristics(
         Case Case, 
@@ -240,20 +242,22 @@ namespace Ginger.Runner.Solarix
         string RelatedInfinitive) 
         : NounCharacteristics(Case, Number, Gender, Form);
 
-    internal sealed record PronounCharacteristics(Gender Gender, Number Number, Person Person) : GrammarCharacteristics();
+    internal sealed record PronounCharacteristics(Gender Gender, Number Number, Person Person) : GrammarCharacteristics;
 
-    internal sealed record GerundCharacteristics(Case Case, VerbAspect VerbAspect) : GrammarCharacteristics();
+    internal sealed record GerundCharacteristics(Case Case, VerbAspect VerbAspect) : GrammarCharacteristics;
 
     internal sealed record InfinitiveCharacteristics(
         VerbAspect VerbAspect, 
         Transitiveness Transitiveness, 
         string PerfectForm)
-        : GrammarCharacteristics();
+        : GrammarCharacteristics;
 #pragma warning restore CA1801
 
-    internal sealed record NullGrammarCharacteristics() : GrammarCharacteristics();
+    internal sealed record NullGrammarCharacteristics : GrammarCharacteristics;
 
     internal sealed record LemmaVersion(string Lemma, PartOfSpeech? PartOfSpeech, GrammarCharacteristics Characteristics);
 
     internal sealed record SentenceElement(string Content, IReadOnlyCollection<LemmaVersion> LemmaVersions, IReadOnlyList<SentenceElement> Children, LinkType? LeafLinkType);
+// ReSharper restore UnusedMember.Global
+// ReSharper restore InconsistentNaming
 }

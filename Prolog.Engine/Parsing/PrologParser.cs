@@ -2,16 +2,17 @@ using System;
 using System.Globalization;
 using System.Linq;
 using System.Collections.Generic;
+using Prolog.Engine.Miscellaneous;
 
-using static Prolog.Engine.Builtin;
-using static Prolog.Engine.DomainApi;
-using static Prolog.Engine.Either;
-using static Prolog.Engine.MayBe;
-using static Prolog.Engine.TextParsingPrimitives;
-using static Prolog.Engine.MonadicParsing;
-
-namespace Prolog.Engine
+namespace Prolog.Engine.Parsing
 {
+    using static Builtin;
+    using static DomainApi;
+    using static Either;
+    using static MayBe;
+    using static TextParsingPrimitives;
+    using static MonadicParsing;
+    
     public static class PrologParser
     {
         public static IReadOnlyCollection<Rule> ParseProgram(string input) =>
@@ -25,7 +26,7 @@ namespace Prolog.Engine
 
         internal static MayBe<Term> TryParseTerm(string input) =>
             TryParseCore(PrologParsers.TermParser, input, string.Empty)
-            .Fold(_ => MakeNone<Term>(), result => Some(result));
+            .Fold(_ => MakeNone<Term>(), Some);
 
         public static event Action<string>? ParsingEvent;
 

@@ -1,10 +1,12 @@
-using System;
 using System.Collections.Generic;
 using System.Linq;
-using static Prolog.Engine.DomainApi;
+using Prolog.Engine.Miscellaneous;
+
 
 namespace Prolog.Engine
 {
+    using static DomainApi;
+    
     public static class Builtin
     {
 #pragma warning disable CA1707

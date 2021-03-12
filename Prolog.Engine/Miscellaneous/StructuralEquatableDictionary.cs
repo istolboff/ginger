@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 
-namespace Prolog.Engine
+namespace Prolog.Engine.Miscellaneous
 {
     public sealed class StructuralEquatableDictionary<TKey, TValue> :
         IReadOnlyDictionary<TKey, TValue>,

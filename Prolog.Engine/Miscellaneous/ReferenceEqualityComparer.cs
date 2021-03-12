@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 
-namespace Prolog.Engine
+namespace Prolog.Engine.Miscellaneous
 {
     internal sealed class ReferenceEqualityComparer<T> : IEqualityComparer<T>
     {

@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using Prolog.Engine;
+using Prolog.Engine.Miscellaneous;
 using TechTalk.SpecFlow;
 
 namespace Ginger.Tests

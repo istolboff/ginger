@@ -1,12 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Prolog.Engine.Miscellaneous;
 
-using static Prolog.Engine.Either;
-using static Prolog.Engine.MayBe;
-
-namespace Prolog.Engine
+namespace Prolog.Engine.Parsing
 {
+    using static Either;
+    using static MayBe;
+
     internal sealed record TextInput(string Text, int Position)
     {
         public TextInput Skip(int n) => this with { Position = this.Position + n };

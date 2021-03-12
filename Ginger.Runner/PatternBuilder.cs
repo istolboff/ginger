@@ -4,15 +4,16 @@ using System.Collections.Immutable;
 using System.Globalization;
 using System.Linq;
 using Prolog.Engine;
+using Prolog.Engine.Miscellaneous;
 using Ginger.Runner.Solarix;
-
-using static Prolog.Engine.DomainApi;
-using static Prolog.Engine.MayBe;
-using static Prolog.Engine.PrologParser;
 
 namespace Ginger.Runner
 {
-    using WordOrQuotation = Prolog.Engine.Either<Word, Quotation>;
+    using WordOrQuotation = Either<Word, Quotation>;
+
+    using static DomainApi;
+    using static MayBe;
+    using static Prolog.Engine.Parsing.PrologParser;
 
     internal static class PatternBuilder
     {
@@ -106,7 +107,7 @@ namespace Ginger.Runner
                         targetLemmaVersion.FindRelevantLemma(currentWord.LemmaVersions).HasValue, 
                         log: "Searching for relevant lemma. " + 
                             $"Expected: {targetLemmaVersion.PartOfSpeech}-{targetLemmaVersion.GrammarCharacteristics} ({lemmaVersion.Lemma})" + 
-                            $"Actual: {string.Join(";", currentWord.LemmaVersions.Select(lv => lv.PartOfSpeech.ToString() + "-" + lv.Characteristics.ToString()))}") &&
+                            $"Actual: {string.Join(";", currentWord.LemmaVersions.Select(lv => lv.PartOfSpeech + "-" + lv.Characteristics))}") &&
                     (
                     !particularWordIsExpectedAtThisPlaceInSentence || 
                     LogChecking(
@@ -123,7 +124,7 @@ namespace Ginger.Runner
             Func<CheckableSentenceElement, bool> BuildQuotationChecker(Quotation quotation)
             {
                 var childCheckers = BuildChildCheckers(quotation.Children);
-                if (!pathesToWords.TryGetValue(quotation.Content, out var pathToQuotation))
+                if (!pathesToWords.ContainsKey(quotation.Content))
                 {
                     pathesToWords.Add(quotation.Content, new PathToQuotation(wordIndexes));
                 }

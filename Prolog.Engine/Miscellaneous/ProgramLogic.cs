@@ -1,10 +1,10 @@
 using System;
 
-namespace Prolog.Engine
+namespace Prolog.Engine.Miscellaneous
 {
     internal static class ProgramLogic
     {
         public static InvalidOperationException Error(string message) =>
-            new InvalidOperationException("Program Logic Error: " + message);
+            new ("Program Logic Error: " + message);
     }
 }

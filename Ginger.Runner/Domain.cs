@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Prolog.Engine;
+using Prolog.Engine.Miscellaneous;
 
 namespace Ginger.Runner
 {

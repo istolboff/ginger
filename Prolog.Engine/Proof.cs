@@ -2,12 +2,13 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
-
-using static Prolog.Engine.Builtin;
-using static Prolog.Engine.DomainApi;
+using Prolog.Engine.Miscellaneous;
 
 namespace Prolog.Engine
 {
+    using static Builtin;
+    using static DomainApi;
+
     public static class Proof
     {
         public static IEnumerable<UnificationResult> Find(

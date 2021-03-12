@@ -1,7 +1,13 @@
 #pragma warning disable CA1707
+// ReSharper disable CheckNamespace
 namespace SolarixGrammarEngineNET
+// ReSharper restore CheckNamespace
 {
+// ReSharper disable InconsistentNaming
+// ReSharper disable UnusedMember.Global
+// ReSharper disable ClassNeverInstantiated.Global
  public sealed class GrammarEngineAPI
+ // ReSharper restore ClassNeverInstantiated.Global
  {
   public const string VERSION_MARK="This file is generated 28.01.2017 15:23:49 by Ygres compiler ver. 14.14.11192 Standard Win64  (build date Sep 21 2016).";
 // Languages
@@ -568,5 +574,7 @@ namespace SolarixGrammarEngineNET
  public const int SECOND_VERB_link = 114;
 
   };
- }
+ // ReSharper restore UnusedMember.Global
+// ReSharper restore InconsistentNaming
+}
 #pragma warning restore CA1707

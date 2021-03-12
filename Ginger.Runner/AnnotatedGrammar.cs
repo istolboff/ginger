@@ -1,13 +1,12 @@
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
 using Ginger.Runner.Solarix;
-using Prolog.Engine;
+using Prolog.Engine.Miscellaneous;
 
 namespace Ginger.Runner
 {
-    using WordOrQuotation = Prolog.Engine.Either<Word, Quotation>;
+    using WordOrQuotation = Either<Word, Quotation>;
 
     internal sealed record AnnotatedSentence(
         WordOrQuotation Sentence,
@@ -50,8 +49,8 @@ namespace Ginger.Runner
                         ? word.LemmaVersions
                             .Concat(word.Children.SelectMany(child => GetAllWordLemmas(child, annotatedWords)))
                         : word.Children.SelectMany(child => GetAllWordLemmas(child, annotatedWords)),
-                quotation => Enumerable.Empty<LemmaVersion>());
+                _ => Enumerable.Empty<LemmaVersion>());
 
-        private static readonly Regex AnnotatedWordsMatcher = new Regex(@"~([^~]+)~", RegexOptions.Compiled);
+        private static readonly Regex AnnotatedWordsMatcher = new (@"~([^~]+)~", RegexOptions.Compiled);
     }
 }

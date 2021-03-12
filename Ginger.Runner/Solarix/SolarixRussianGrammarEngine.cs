@@ -4,14 +4,14 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text;
-using Prolog.Engine;
+using Prolog.Engine.Miscellaneous;
 using SolarixGrammarEngineNET;
-
-using static Prolog.Engine.MayBe;
-using static Prolog.Engine.MakeCompilerHappy;
 
 namespace Ginger.Runner.Solarix
 {
+    using static MayBe;
+    using static MakeCompilerHappy;
+
     internal sealed class SolarixRussianGrammarEngine : IRussianGrammarParser
     {
         public SolarixRussianGrammarEngine()
@@ -144,50 +144,6 @@ namespace Ginger.Runner.Solarix
             }
         }
 
-        public MayBe<string> FindLinkedParticipleInPassiveVoice(string word)
-        {
-            var wordClassIds = new[] { GrammarEngineAPI.INFINITIVE_ru, GrammarEngineAPI.VERB_ru, GrammarEngineAPI.NOUN_ru };
-
-            foreach (var classId in wordClassIds)
-            {
-                var wordId = GrammarEngine.sol_FindEntry(_engineHandle, word, classId, GrammarEngineAPI.RUSSIAN_LANGUAGE);
-                if (wordId == -1)
-                {
-                    continue;
-                }
-
-                var linksList = GrammarEngine.sol_ListLinksTxt(_engineHandle, wordId, GrammarEngineAPI.TO_ADJ_link, 0);
-                if (linksList == IntPtr.Zero)
-                {
-                    continue;
-                }
-
-                var linkListCount = GrammarEngine.sol_LinksInfoCount(_engineHandle, linksList);
-                if (linkListCount == 0)
-                {
-                    SuppressCa1806(GrammarEngine.sol_DeleteLinksInfo(_engineHandle, linksList));
-                    continue;
-                }
-
-                string result = string.Empty;
-                for (var i = 0; i != linkListCount; ++i)
-                {
-                    var linkedWordId = GrammarEngine.sol_LinksInfoEKey2(_engineHandle, linksList, i);
-                    if (GrammarEngine.sol_GetEntryCoordState(_engineHandle, linkedWordId, GrammarEngineAPI.PASSIVE_PARTICIPLE_ru) == 1)
-                    {
-                        result = GetEntryName(linkedWordId);
-                        break;
-                    }
-                }
-
-                SuppressCa1806(GrammarEngine.sol_DeleteLinksInfo(_engineHandle, linksList));
-
-                return Some(result);
-            }
-
-            return None;
-        }
-
         private SentenceElement CreateSentenceElement(IntPtr hNode, int? leafType = null)
         {
             var content = GrammarEngine.sol_GetNodeContentsFX(hNode);
@@ -239,7 +195,7 @@ namespace Ginger.Runner.Solarix
                     GrammarEngine.sol_GetLeafLinkType(hNode, leaveIndex)));
 
             return new SentenceElement(
-                Content: content.ToString(),
+                Content: content,
                 LeafLinkType: leafType == null || leafType.Value < 0 ? (LinkType?)null : (LinkType)leafType.Value,
                 LemmaVersions: lemmaVersions.AsImmutable(), 
                 Children: children.ToList());
