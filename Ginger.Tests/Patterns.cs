@@ -72,7 +72,7 @@ namespace Ginger.Tests
         public void SentencesShouldFailToBeUnderstood(Table sentences)
         {
             var unexpectedUnderstandings = (
-                    from sentence in sentences.Rows.Select(r => r["Sentence"])
+                    from sentence in sentences.GetMultilineRows().Select(r => r["Sentence"])
                     let understanding = SentenceUnderstander.Understand(_grammarParser.ParsePreservingQuotes(sentence).Single())
                     where understanding.HasValue
                     let understoodSentence = understanding.Value

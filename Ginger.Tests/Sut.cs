@@ -42,7 +42,7 @@ namespace Ginger.Tests
         public void FollowingScenariosShouldBeGenerated(Table expectedScenarios)
         {
             var es = 
-                from row in expectedScenarios.Rows
+                from row in expectedScenarios.GetMultilineRows()
                 from scenario in ParseTerm(row["Scenario Steps"])
                                     .CastToList<ComplexTerm>()
                                     .Select(route => new TestScenario(row["Expected Outcome"], new (route)))

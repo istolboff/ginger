@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Prolog.Engine;
@@ -16,34 +15,14 @@ namespace Prolog.Tests
 
     public abstract class ProofTestsBase
     {
-#if UseLogging
         [TestInitialize]
         public void Setup()
         {
-            System.IO.File.Delete(_traceFilePath!);
+            PrologLogging.OnTestStartup();
         }
-#endif
 
-        [Conditional("UseLogging")]
-        protected static void SetupLogging(TestContext? testContext)
-        {
-            _traceFilePath = System.IO.Path.Combine(testContext?.TestLogsDir ?? System.IO.Path.GetTempPath(), "Prolog.trace");
-
-            Proof.ProofEvent += (description, nestingLevel, @this) =>
-            {
-                System.IO.File.AppendAllText(_traceFilePath, new string(' ', nestingLevel * 3));
-
-                if (description != null)
-                {
-                    System.IO.File.AppendAllText(_traceFilePath, $"{description}: ");
-                }
-
-                System.IO.File.AppendAllText(_traceFilePath, Dump(@this));
-                System.IO.File.AppendAllLines(_traceFilePath, new[] { string.Empty });
-            };
-
-            PrologParser.ParsingEvent += text => System.IO.File.AppendAllLines(_traceFilePath, new[] { text });
-        }
+        protected static void SetupLogging(TestContext? testContext) =>
+            PrologLogging.Setup(testContext);
 
         protected static void CheckSituations(
             IEnumerable<(string Description, string Program, string Query, Dictionary<string, string>[] ExpectedProofs)> situations,
@@ -91,7 +70,5 @@ namespace Prolog.Tests
 
         private static UnificationResult RemoveUnlistedInstantiations(UnificationResult result, IEnumerable<Variable> keys) =>
             result with { Instantiations = new (result.Instantiations.Where(kvp => keys.Contains(kvp.Key))) };
-
-        private static string? _traceFilePath; 
     }
 }

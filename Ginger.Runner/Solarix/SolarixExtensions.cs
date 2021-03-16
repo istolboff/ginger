@@ -11,8 +11,14 @@ namespace Ginger.Runner.Solarix
             (@this, right) switch 
             {
                 (NounCharacteristics leftNoun, NounCharacteristics rightNoun) => 
-                    CasesAreCompatible(leftNoun.Case, rightNoun.Case) &&
-                    leftNoun.Number == rightNoun.Number,
+                    (CasesAreCompatible(leftNoun.Case, rightNoun.Case) &&
+                     leftNoun.Number == rightNoun.Number) 
+                     ||
+                     // fix-01
+                     // 'реки' -- определяется как именительный падеж, множественное число, 
+                     //           а ожидается родительный падеж, единственное число.
+                     (leftNoun.Case == Case.Родительный && leftNoun.Number == Number.Единственное &&
+                      rightNoun.Case == Case.Именительный && rightNoun.Number == Number.Множественное),
                 (AdjectiveCharacteristics leftAdjective, AdjectiveCharacteristics rightAdjective) =>
                     CasesAreCompatible(leftAdjective.Case, rightAdjective.Case) &&
                     leftAdjective.Number == rightAdjective.Number &&

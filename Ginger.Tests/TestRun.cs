@@ -3,6 +3,9 @@ using System.Diagnostics;
 using BoDi;
 using Ginger.Runner;
 using Ginger.Runner.Solarix;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Prolog.Engine.Parsing;
+using Prolog.Tests;
 using TechTalk.SpecFlow;
 
 namespace Ginger.Tests
@@ -18,10 +21,11 @@ namespace Ginger.Tests
         }
 
         [BeforeTestRun]
-        public static void SetupTestRun()
+        public static void SetupTestRun(TestContext testContext)
         {
             _russianGrammarParser = new SolarixParserMemoizer(new SolarixRussianGrammarEngine());
             _sentenceUnderstander = SentenceUnderstander.LoadFromEmbeddedResources(_russianGrammarParser);
+            PrologLogging.Setup(testContext);
             PatternBuilder.PatternRecognitionEvent += (log, success) => LogPatternRecognitionEvent(log, success);
         }
 

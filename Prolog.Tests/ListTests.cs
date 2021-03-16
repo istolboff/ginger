@@ -7,6 +7,23 @@ namespace Prolog.Tests
     public class ListTests : ProofTestsBase
     {
         [TestMethod]
+        public void InfixOperatorsInLists()
+        {
+            CheckSituations(new[]
+            {
+                (
+                    Description: "Testing parsing lists with members in the form of infix operators",
+                    Program: "situation([located(man, on, X), located(woman, on, X), surface(cube, X), X = external]).",
+                    Query: "situation(X)",
+                    ExpectedSolutions: new[] 
+                    {
+                        new V { ["X"] = "[located(man, on, _), located(woman, on, _), surface(cube, _), _ = external]" }
+                    }
+                )
+            });
+        }
+
+        [TestMethod]
         public void MemberApi()
         {
             CheckSituations(new[]
@@ -178,14 +195,13 @@ namespace Prolog.Tests
         {
             CheckSituations(new[]
             {
-#if CommentedOut                
                 (
                     Description: "Testing built-in flatten() functor: empty list",
                     Program: string.Empty,
                     Query: "flatten([], Z)",
                     ExpectedSolutions: new[] 
                     { 
-                        new V1 { ["Z"] = "[]" }
+                        new V { ["Z"] = "[]" }
                     }
                 ),
 
@@ -195,10 +211,10 @@ namespace Prolog.Tests
                     Query: "flatten([atom], Z)",
                     ExpectedSolutions: new[] 
                     { 
-                        new V1 { ["Z"] = "[atom]" }
+                        new V { ["Z"] = "[atom]" }
                     }
                 ),
-#endif
+
                 (
                     Description: "Testing built-in flatten() functor: list with a single list element",
                     Program: string.Empty,

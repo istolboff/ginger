@@ -26,36 +26,29 @@ namespace Prolog.Engine.Parsing
 
     internal delegate Either<ParsingError, Result<TValue>> Parser<TValue>(TextInput input);
 
-    internal sealed record ParsingTracer
+#pragma warning disable CA1801 // Review unused parameters
+    internal sealed record ParsingTracer(Action<string> TraceParsingEvent, int MaxNestingLevel = 64)
+#pragma warning restore CA1801
     {
-        public ParsingTracer(Action<string> trace, int maxNestingLevel = 64)
-        {
-            _trace = trace;
-            _maxNestingLevel = maxNestingLevel;
-        }
-
         public Parser<T> Trace<T>(Parser<T> parser, string parserName) =>
             input =>
             {
-                if (_nestingLevel >= _maxNestingLevel)
+                if (_nestingLevel >= MaxNestingLevel)
                 {
                     return parser(input);
                 }
 
                 var linePrefix = new string(' ', _nestingLevel * 3);
-                _trace($"{linePrefix}+{parserName} <== {Dump(input)}");
+                TraceParsingEvent($"{linePrefix}+{parserName} <== {Dump(input)}");
                 ++_nestingLevel;
                 var result = parser(input);
                 --_nestingLevel;
-                _trace($"{linePrefix}-{parserName}: {result.Fold(e => $"failed; {e.Text} at {Dump(e.Location)}", r => r.Value?.ToString())}");
+                TraceParsingEvent($"{linePrefix}-{parserName}: {result.Fold(e => $"failed; {e.Text} at {Dump(e.Location)}", r => r.Value?.ToString())}");
                 return result;
 
                 string Dump(TextInput i) => i.Text.Insert(i.Position, "▲");
             };
 
-
-        private readonly Action<string> _trace;
-        private readonly int _maxNestingLevel;
         private int _nestingLevel;
     }
 

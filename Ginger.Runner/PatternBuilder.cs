@@ -106,8 +106,8 @@ namespace Ginger.Runner
                     LogChecking(
                         targetLemmaVersion.FindRelevantLemma(currentWord.LemmaVersions).HasValue, 
                         log: "Searching for relevant lemma. " + 
-                            $"Expected: {targetLemmaVersion.PartOfSpeech}-{targetLemmaVersion.GrammarCharacteristics} ({lemmaVersion.Lemma})" + 
-                            $"Actual: {string.Join(";", currentWord.LemmaVersions.Select(lv => lv.PartOfSpeech + "-" + lv.Characteristics))}") &&
+                            $"Expected: {targetLemmaVersion.PartOfSpeech}-{targetLemmaVersion.GrammarCharacteristics} ({lemmaVersion.Lemma}) " + 
+                            $"Actual: {string.Join(";", currentWord.LemmaVersions.Select(lv => lv.PartOfSpeech + "-" + lv.Characteristics))} ({currentWord.Content})") &&
                     (
                     !particularWordIsExpectedAtThisPlaceInSentence || 
                     LogChecking(
@@ -263,8 +263,8 @@ namespace Ginger.Runner
         {
             public MayBe<LemmaVersion> FindRelevantLemma(IEnumerable<LemmaVersion> lemmaVersions) =>
                 lemmaVersions.TryFirst(lm => 
-                                lm.PartOfSpeech == PartOfSpeech &&
-                                lm.Characteristics.CompatibleTo(GrammarCharacteristics));
+                                PartOfSpeech == lm.PartOfSpeech &&
+                                GrammarCharacteristics.CompatibleTo(lm.Characteristics));
         }
 
         private abstract record PathToWordBase(ImmutableStack<int> ChildrenIndexes)

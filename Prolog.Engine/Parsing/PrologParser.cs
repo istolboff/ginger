@@ -96,20 +96,33 @@ namespace Prolog.Engine.Parsing
                         select ComplexTerm(Functor(functorName.Characters, arguments.Count), arguments),
                         "complexTerm");
 
+            var infixExpressionOrSingleTerm = tracer.Trace(
+                        from delayUsage in ForwardDeclaration(term)
+                        from term1 in term!
+                        from operationAndSecondTerm in Optional(
+                                    from @operator in Lexem(Builtin.BinaryOperators.Keys.ToArray())
+                                    let complexTermFactory = Builtin.BinaryOperators[@operator]
+                                    from rightPart in term!
+                                    select (complexTermFactory, rightPart))
+                        select operationAndSecondTerm
+                            .Map(it => it.complexTermFactory(term1, it.rightPart) as Term)
+                            .OrElse(() => term1),
+                        "infixExpressionOrSingleTerm");
+
             var explicitList = tracer.Trace(
                         from delayUsage in ForwardDeclaration(term)
 // ReSharper disable once AccessToModifiedClosure
-                        from elements in Repeat(term!, separatorParser: comma)
+                        from elements in Repeat(infixExpressionOrSingleTerm, separatorParser: comma)
                         select List(elements.Reverse()),
                         "explicitList");
 
             var barList = tracer.Trace(
                         from delayUsage in ForwardDeclaration(term)
 // ReSharper disable once AccessToModifiedClosure
-                        from head in term!
+                        from head in infixExpressionOrSingleTerm
                         from unused in Lexem("|")
 // ReSharper disable once AccessToModifiedClosure
-                        from tail in term!
+                        from tail in infixExpressionOrSingleTerm
                         select Dot(head, tail),
                         "barList");
 
