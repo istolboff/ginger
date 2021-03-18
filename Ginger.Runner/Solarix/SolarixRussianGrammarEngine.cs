@@ -159,6 +159,25 @@ namespace Ginger.Runner.Solarix
             }
         }
 
+        public string GetNeutralForm(string word)
+        {
+            var hProjs = GrammarEngine.sol_ProjectWord(_engineHandle, word, 0);
+            var result = Enumerable
+                            .Range(0, GrammarEngine.sol_CountProjections(hProjs))
+                            .Select(i => GrammarEngine.sol_GetEntryNameFX(_engineHandle, GrammarEngine.sol_GetIEntry(hProjs,i)))
+                            .Distinct()
+                            .AsImmutable();
+            GrammarEngine.sol_DeleteProjections(hProjs);
+            return result.Count switch
+                {
+                    0 => throw new InvalidOperationException(
+                        $"Could not find neutral form of the word '{word}'"),
+                    1 => result.Single(),
+                    _ => throw new InvalidOperationException(
+                        $"There are several neutral forms ({string.Join(", ", result)}) of the word '{word}'")
+                };
+        }
+
         public string GenerateWordForm(string word, PartOfSpeech? partOfSpeech, GrammarCharacteristics characteristics)
         {
             var entryId = GrammarEngine.sol_FindEntry(

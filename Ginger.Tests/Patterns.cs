@@ -102,6 +102,7 @@ namespace Ginger.Tests
                                                         .Select(s => s.Trim())
                     let actualConcretePatterns = new GenerativePattern("unimportant", generativePatternText, Array.Empty<Rule>())
                                                     .GenerateConcretePatterns(_grammarParser, _russianLexicon)
+                                                    .Select(it => it.Pattern)
                     where !expectedConcretePatterns.SequenceEqual(actualConcretePatterns)
                     select new 
                     { 
@@ -111,7 +112,7 @@ namespace Ginger.Tests
                                                                     expectedConcretePatterns
                                                                         .Zip(actualConcretePatterns)
                                                                         .Where(it => it.First != it.Second)
-                                                                        .Select(it => $" +  {it.First}{Environment.NewLine} -  {it.Second}"))
+                                                                        .Select(it => $" +  !{it.First}!{Environment.NewLine} -  !{it.Second}!"))
                     }
                 ).AsImmutable();
 

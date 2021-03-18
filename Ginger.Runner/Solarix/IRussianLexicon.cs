@@ -5,6 +5,8 @@ namespace Ginger.Runner.Solarix
 {
     internal interface IRussianLexicon
     {
+        string GetNeutralForm(string word);
+        
         string GenerateWordForm(string word, PartOfSpeech? partOfSpeech, GrammarCharacteristics characteristics);
         
         string GetPluralForm(LemmaVersion lemmaVersion);

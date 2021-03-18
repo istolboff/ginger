@@ -9,7 +9,6 @@ using System.Text.RegularExpressions;
 namespace Ginger.Runner
 {
     using static DomainApi;
-    using static MayBe;
 
     using ConcreteUnderstander = Func<Either<Word, Quotation>, MayBe<UnderstoodSentence>>;
 
@@ -18,87 +17,43 @@ namespace Ginger.Runner
         public IReadOnlyCollection<ConcreteUnderstander> GenerateConcreteUnderstanders(
             IRussianGrammarParser grammarParser,
             IRussianLexicon russianLexicon) 
-        =>
-            ConcretePatternBuilder.TryParse(PatternText, grammarParser, russianLexicon)
-                .Map(concretePatternBuilder =>
-                    Enumerable
-                        .Range(1, MaximumNumberOfElementsInEnumerations)
-                        .Select(elementsNumber => 
-                                PatternBuilder.BuildPattern(
+        => 
+            GenerateConcretePatterns(grammarParser, russianLexicon)
+                .Select(it => PatternBuilder.BuildPattern(
                                     PatternId, 
                                     grammarParser.ParseAnnotated(
-                                        DisambiguatedPattern.Create(
-                                            concretePatternBuilder.GenerateConcretePatternText(
-                                                russianLexicon, 
-                                                elementsNumber),
-                                            russianLexicon)), 
-                                    concretePatternBuilder.ReplicateMeaning(Meaning, elementsNumber),
+                                        DisambiguatedPattern.Create(it.Pattern, russianLexicon)), 
+                                    it.Meaning,
                                     russianLexicon))
-                        .AsImmutable())
-                .OrElse(() => new[]
-                            { 
-                                PatternBuilder.BuildPattern(
-                                    PatternId, 
-                                    grammarParser.ParseAnnotated(
-                                        DisambiguatedPattern.Create(PatternText, russianLexicon)), 
-                                    Meaning,
-                                    russianLexicon)
-                            });
+                .AsImmutable();
 
-        internal IReadOnlyCollection<string> GenerateConcretePatterns(
+        internal IEnumerable<PatternWithMeaning> GenerateConcretePatterns(
             IRussianGrammarParser grammarParser,
             IRussianLexicon russianLexicon) 
         =>
-            ConcretePatternBuilder.TryParse(PatternText, grammarParser, russianLexicon)
-                .Map(concretePatternBuilder =>
-                    Enumerable
-                        .Range(1, MaximumNumberOfElementsInEnumerations)
-                        .Select(elementsNumber => 
-                            concretePatternBuilder.GenerateConcretePatternText(russianLexicon, elementsNumber))
-                        .AsImmutable())
-                .OrElse(() => 
-                    throw Failure($"Could not parse generative pattern {PatternText}"));
+            FixedWordAlternativesPattern.Generate(PatternText, Meaning, russianLexicon)
+                .SelectMany(it => ReplicatableWordPattern.Generate(it.Pattern, it.Meaning, grammarParser, russianLexicon));
 
-        private const int MaximumNumberOfElementsInEnumerations = 4;
-
-        private record ConcretePatternBuilder(
-            string PatternText,
-            string ConcretePatternWithJustReplicatableWord,
-            ReplicatableWord ReplicatableWord,
-            IReadOnlyCollection<PluralitySensitiveElement> PluralitySensitiveElements)
+        private static class ReplicatableWordPattern
         {
-            public string GenerateConcretePatternText(IRussianLexicon russianLexicon, int elementsNumber) =>
-                elementsNumber == 1 
-                    ? ConcretePatternWithJustReplicatableWord
-                    : new[] { ReplicatableWord.BuildPatternModifier(elementsNumber, russianLexicon) }
-                        .Concat(PluralitySensitiveElements.Select(it => it.BuildPatternModifier(russianLexicon)))
-                        .OrderByDescending(operation => operation.Location.Start)
-                        .Aggregate(
-                            PatternText, 
-                            (pattern, patternModifier) => patternModifier.ApplyTo(pattern));
-
-            public IReadOnlyCollection<Rule> ReplicateMeaning(
-                IReadOnlyCollection<Rule> meaningForJustReplicatableWord, 
-                int n) 
-            =>
-                Enumerable
-                    .Range(1, n)
-                    .SelectMany(i => i == 1 
-                                ? meaningForJustReplicatableWord 
-                                : ReplicatableWord.AdjustMeaning(meaningForJustReplicatableWord, i))
-                    .AsImmutable();
-
-            public static MayBe<ConcretePatternBuilder> TryParse(
-                string annotatedPatternText, 
+            public static IEnumerable<PatternWithMeaning> Generate(
+                string patternText,
+                IReadOnlyCollection<Rule> meaning,
                 IRussianGrammarParser grammarParser,
-                IRussianLexicon russianLexicon)
+                IRussianLexicon russianLexicon) 
             {
-                var generationElements = (
-                        from m in GenerationElementRegex.Matches(annotatedPatternText)
+                var matchCollection = ReplicatableWordRegex.Matches(patternText);
+                if (!matchCollection.Any())
+                {
+                    return PlainPattern();
+                }
+
+                var replicatableWordElements = (
+                        from m in matchCollection
                         let word = m.Groups[1].Value
                         let wordLocation = new SubstringLocation(m.Groups[1].Index, m.Groups[1].Length)
                         let lemmaDisambiguator = m.Groups[2].Success 
-                                ? LemmaVersionDisambiguatorDefinition.Create(m.Groups[2].Value, russianLexicon) 
+                                ? LemmaVersionDisambiguatorDefinition.Create(m.Groups[2].Value, russianLexicon)
                                 : null
                         let generationHint = ParseHint(m.Groups[3].Value)
                         let generationHintLocation = new SubstringLocation(m.Groups[3].Index, m.Groups[3].Length)
@@ -106,58 +61,58 @@ namespace Ginger.Runner
                         select new { word, generationHint, generationElement, lemmaDisambiguator }
                     ).ToArray();
 
-                var patternWithGenerationHintsRemoved = generationElements
-                        .OrderByDescending(ge => ge.generationElement.WordLocation.Start)
-                        .Select(ge => ge.generationElement.HintLocation)
-                        .Aggregate(
-                            annotatedPatternText,
-                            (pattern, hint) => pattern.Remove(hint.Start, hint.Length))
+                var patternWithRemovedGenerationHints = AdjustText(
+                        patternText,
+                        replicatableWordElements
+                            .Select(ge => new StringAdjustingOperation(ge.generationElement.HintLocation, string.Empty)))
                         .Trim();
-
+                
                 var parsedPattern = grammarParser.ParseAnnotated(
-                     DisambiguatedPattern.Create(
-                         patternWithGenerationHintsRemoved,
-                         russianLexicon)).Sentence;
+                        DisambiguatedPattern.Create(patternWithRemovedGenerationHints, russianLexicon))
+                    .Sentence;
+
                 if (!parsedPattern.IsLeft) 
                 {   
-                    return None; // it's a quote, hence it can't be a generative pattern
+                    // it's a quote, hence it can't be a generative pattern
+                    return PlainPattern();
                 }
 
-                if (generationElements
+                if (replicatableWordElements
                         .Where(ge => ge.generationHint == GenerationHint.Replicatable)
                         .Any(ge => ge.lemmaDisambiguator != null))
                 {
+                    // you can't do something like this: очки его (вин.,ср.) {и проч.} красят
                     throw Failure(
                         "Lemma version disambiguators for replicatable words are not supported. Please reformulate the pattern.");
                 }
 
                 var replicatableWords = (
-                            from ge in generationElements
+                            from ge in replicatableWordElements
                             where ge.generationHint == GenerationHint.Replicatable
                             let wordElement = FindWordInParsedPattern(
-                                                patternWithGenerationHintsRemoved, 
+                                                patternWithRemovedGenerationHints, 
                                                 parsedPattern.Left!, 
                                                 ge.word, 
                                                 ge.generationHint)
                             select new ReplicatableWord(
                                 ge.generationElement,
-                                GetSingleLemmaVersion(wordElement, patternWithGenerationHintsRemoved, ge.generationHint))
+                                GetSingleLemmaVersion(wordElement, patternWithRemovedGenerationHints, ge.generationHint))
                         ).AsImmutable();
 
                 switch (replicatableWords.Count)
                 {
-                    case 0: return None;
+                    case 0: return PlainPattern();
                     case 1: break;
                     default: throw Failure(
                         $"Only single replicatable word marked with {ReplicatableHintText} is supported. " + 
-                        $"In pattern '{annotatedPatternText}' there are {replicatableWords.Count}.");
+                        $"In pattern '{patternText}' there are {replicatableWords.Count}.");
                 }
                 
                 var pluralitySensitiveElements = (
-                        from ge in generationElements
+                        from ge in replicatableWordElements
                         where ge.generationHint == GenerationHint.PluralitySensitive
                         let wordElement = FindWordInParsedPattern(
-                                            patternWithGenerationHintsRemoved,
+                                            patternWithRemovedGenerationHints,
                                             parsedPattern.Left!, 
                                             ge.word, 
                                             ge.generationHint)
@@ -166,7 +121,7 @@ namespace Ginger.Runner
                             EnsureMasculine(
                                 GetSingleLemmaVersion(
                                     wordElement, 
-                                    patternWithGenerationHintsRemoved, 
+                                    patternWithRemovedGenerationHints, 
                                     ge.generationHint,
                                     ignoreGender: true),
                                 ge.word),
@@ -174,12 +129,30 @@ namespace Ginger.Runner
                                 
                         ).AsImmutable();
 
-                return Some(
-                    new ConcretePatternBuilder(
-                        annotatedPatternText,
-                        patternWithGenerationHintsRemoved,
-                        replicatableWords.Single(),
-                        pluralitySensitiveElements));
+                return Enumerable
+                        .Range(1, MaximumNumberOfElementsInEnumerations)
+                        .Select(elementsNumber => 
+                        {
+                            var replicatableWord = replicatableWords.Single();
+                            var concretePatternText = elementsNumber == 1 
+                                ? patternWithRemovedGenerationHints
+                                : AdjustText(
+                                    patternText,
+                                    new[] { replicatableWord.BuildPatternModifier(elementsNumber, russianLexicon) }
+                                        .Concat(pluralitySensitiveElements.Select(it => it.BuildPatternModifier(russianLexicon))));
+
+                            var concretePatternMeaning = Enumerable
+                                .Range(1, elementsNumber)
+                                .SelectMany(i => i == 1 
+                                            ? meaning 
+                                            : replicatableWord.AdjustMeaning(meaning, i))
+                                .AsImmutable();
+
+                            return new PatternWithMeaning(concretePatternText, concretePatternMeaning);
+                        });
+
+                PatternWithMeaning[] PlainPattern() =>
+                    new[] { new PatternWithMeaning(patternText, meaning) };
 
                 GenerationHint ParseHint(string hintText) =>
                     hintText switch
@@ -232,11 +205,91 @@ namespace Ginger.Runner
                             "всегда должны иметь мужской род");
             }
 
-            private static readonly Regex GenerationElementRegex = new (@"([а-яА-Я]+)\s*(\([^\)]+\))?\s*({[^}]+})", RegexOptions.Compiled);
+            private static string AdjustText(string text, IEnumerable<StringAdjustingOperation> operations) =>
+                operations
+                    .OrderByDescending(operation => operation.Location.Start)
+                    .Aggregate(text, (s, ao) => ao.ApplyTo(s));
+
+            private static readonly Regex ReplicatableWordRegex = new (@"([а-яА-Я]+)\s*(\([^\)]+\))?\s*({[^}]+})", RegexOptions.Compiled);
+
             private const string ReplicatableHintText = "{и проч.}";
+
+            private const int MaximumNumberOfElementsInEnumerations = 4;
         }
 
+        private static class FixedWordAlternativesPattern
+        {
+            public static IEnumerable<PatternWithMeaning> Generate(
+                string patternText,
+                IReadOnlyCollection<Rule> meaning,
+                IRussianLexicon russianLexicon)
+            {
+                var matchCollection = FixedWordAlternativesRegex.Matches(patternText);
+                if (!matchCollection.Any())
+                {
+                    return new[] { new PatternWithMeaning(patternText, meaning) };
+                }
+                
+                var fixedWordAlternativesElements = matchCollection
+                        .Select(m => 
+                            new 
+                            {
+                                Location = new SubstringLocation(m.Groups[0].Index, m.Groups[0].Length),
+                                Alternatives = m.Groups[1].Value.Split(',').Select(s => s.Trim()).AsImmutable()
+                            })
+                        .Take(2)
+                        .ToArray();
+
+                if (fixedWordAlternativesElements.Length == 0)
+                {
+                    return new[] { new PatternWithMeaning(patternText, meaning) };
+                }
+
+                if (fixedWordAlternativesElements.Length > 1)
+                {
+                    throw Failure("Only single ∥(...,...) generative construction is supported.");
+                }
+
+                var alternativeInfo = fixedWordAlternativesElements.Single();
+
+                return alternativeInfo.Alternatives.Select(
+                    word => new PatternWithMeaning(
+                            Pattern: patternText
+                                .Remove(alternativeInfo.Location.Start, alternativeInfo.Location.Length)
+                                .Insert(alternativeInfo.Location.Start, word),
+                            Meaning: ReplaceWordInMeaning(meaning, "∥", russianLexicon.GetNeutralForm(word))));
+            }
+
+            private static readonly Regex FixedWordAlternativesRegex = new (@"∥\(([^)]+)\)", RegexOptions.Compiled);
+        }
+
+        internal record PatternWithMeaning(string Pattern, IReadOnlyCollection<Rule> Meaning);
+
         private static InvalidOperationException Failure(string message) => new (message);
+
+        private static IReadOnlyCollection<Rule> ReplaceWordInMeaning(
+            IReadOnlyCollection<Rule> meaning,
+            string wordToBeReplaced,
+            string wordToReplaceWith)
+        {
+                return meaning.Select(AdjustRule).AsImmutable();
+
+                Rule AdjustRule(Rule rule) =>
+                    Rule(AdjustComplexTerm(rule.Conclusion), rule.Premises.Select(AdjustComplexTerm));
+
+                ComplexTerm AdjustComplexTerm(ComplexTerm complexTerm) =>
+                    complexTerm with { Arguments = new (complexTerm.Arguments.Select(AdjustTerm)) };
+
+                Term AdjustTerm(Term term) =>
+                    term switch
+                    {
+                        Atom atom when atom.Characters.Equals(
+                            wordToBeReplaced,
+                            StringComparison.OrdinalIgnoreCase) => Atom(wordToReplaceWith),
+                        ComplexTerm ct => AdjustComplexTerm(ct),
+                        _ => term
+                    };
+        }
 
         private record ReplicatableWord(GenerationElementLocation GenerationElement, LemmaVersion WordLemma)
         {
@@ -252,26 +305,8 @@ namespace Ginger.Runner
                              $" и {GetElement(numberOfReplicas, russianLexicon)}"
                     });
 
-            public IReadOnlyCollection<Rule> AdjustMeaning(IReadOnlyCollection<Rule> singleElementMeaning, int nthReplication)
-            {
-                return singleElementMeaning.Select(AdjustRule).AsImmutable();
-
-                Rule AdjustRule(Rule rule) =>
-                    Rule(AdjustComplexTerm(rule.Conclusion), rule.Premises.Select(AdjustComplexTerm));
-
-                ComplexTerm AdjustComplexTerm(ComplexTerm complexTerm) =>
-                    complexTerm with { Arguments = new (complexTerm.Arguments.Select(AdjustTerm)) };
-
-                Term AdjustTerm(Term term) =>
-                    term switch
-                    {
-                        Atom atom when atom.Characters.Equals(
-                            WordLemma.Lemma,
-                            StringComparison.OrdinalIgnoreCase) => Atom(GetElement(nthReplication)),
-                        ComplexTerm ct => AdjustComplexTerm(ct),
-                        _ => term
-                    };
-            }
+            public IReadOnlyCollection<Rule> AdjustMeaning(IReadOnlyCollection<Rule> singleElementMeaning, int nthReplication) =>
+                ReplaceWordInMeaning(singleElementMeaning, WordLemma.Lemma, GetElement(nthReplication));
 
             private IEnumerable<string> GetElements(int n, IRussianLexicon russianLexicon) =>
                 Enumerable.Range(2, n - 1).Select(i => GetElement(i, russianLexicon));

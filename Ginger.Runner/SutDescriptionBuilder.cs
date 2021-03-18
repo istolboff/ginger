@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Ginger.Runner.Solarix;
 using Prolog.Engine;
+using Prolog.Engine.Miscellaneous;
 
 namespace Ginger.Runner
 {
