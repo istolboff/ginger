@@ -27,6 +27,26 @@ namespace Prolog.Engine.Miscellaneous
         public static MayBe<T> TryFirst<T>(this IEnumerable<T> @this) =>
             @this.TryFirst(_ => true);
 
+        public static T TrySingleOrDefault<T>(
+            this IEnumerable<T> @this,
+            Func<T, bool> predicate,
+            Func<IReadOnlyCollection<T>, Exception> reportError) =>
+            @this
+                .Where(predicate)
+                .Take(2)
+                .AsImmutable()
+                .Apply(matchingElements => 
+                    matchingElements.Count switch 
+                    {
+                        1 => matchingElements.Single(),
+                        _ => throw reportError(matchingElements)
+                    });
+
+        public static T TrySingleOrDefault<T>(
+            this IEnumerable<T> @this,
+            Func<IReadOnlyCollection<T>, Exception> reportError) =>
+            @this.TrySingleOrDefault(_ => true, reportError);
+
         public static TAccumulate AggregateWhile<TSource, TAccumulate>(
             this IEnumerable<TSource> source,
             TAccumulate seed,
@@ -132,6 +152,19 @@ namespace Prolog.Engine.Miscellaneous
             {
                 yield return nextValue;
             }
+        }
+
+        public static int IndexOf<T>(this IReadOnlyCollection<T> @this, T element)
+        {
+            foreach (var it in @this.Select((item, index) => (item, index)))
+            {
+                if (EqualityComparer<T>.Default.Equals(it.item, element))
+                {
+                    return it.index;
+                }
+            }
+
+            return -1;
         }
     }
 }

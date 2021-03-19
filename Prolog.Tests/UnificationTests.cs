@@ -2,11 +2,11 @@ using System;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Prolog.Engine;
+using Prolog.Engine.Parsing;
 
 namespace Prolog.Tests
 {
     using static DomainApi;
-    using static Prolog.Engine.Parsing.PrologParser;
 
     using V = System.Collections.Generic.Dictionary<Variable, Term>;
     
@@ -112,7 +112,7 @@ namespace Prolog.Tests
 
                     new
                     {
-                        ExpectedUnification = Unification.Success(X, ParseTerm("point(atom)")),
+                        ExpectedUnification = Unification.Success(X, PrologParser.ParseTerm("point(atom)")),
                         TermPairs = new[]
                             {
                                 ("line(X)", "line(point(atom))"),
@@ -124,7 +124,7 @@ namespace Prolog.Tests
                 }
                 from termPair in test.TermPairs
                 from arguments in new[] { termPair, (termPair.Item2, termPair.Item1) }
-                let unification = Unification.CarryOut(ParseTerm(arguments.Item1), ParseTerm(arguments.Item2))
+                let unification = CarryOutUnification(arguments)
                 where !unification.Succeeded || !unification.Equals(test.ExpectedUnification)
                 select new { arguments.Item1, arguments.Item2, test.ExpectedUnification, ActualUnification = unification })
                 .ToList();
@@ -156,7 +156,7 @@ namespace Prolog.Tests
                     ("line(X, point(X))", "line(one, point(atom))")
                 }
                 from arguments in new[] { termPair, (termPair.Item2, termPair.Item1) }
-                let unification = Unification.CarryOut(ParseTerm(arguments.Item1), ParseTerm(arguments.Item2))
+                let unification = CarryOutUnification(arguments)
                 where unification.Succeeded
                 select new { Arguments = arguments, Unification = unification })
                 .ToList();
@@ -181,13 +181,18 @@ namespace Prolog.Tests
                         TermPair = ("point(1, X)", "point(X, 2)")
                     }
                 }
-                let unification = Unification.CarryOut(ParseTerm(test.TermPair.Item1), ParseTerm(test.TermPair.Item2))
+                let unification = CarryOutUnification(test.TermPair)
                 where !unification.Equals(test.ExpectedUnification)
                 select new { test.TermPair.Item1, test.TermPair.Item2, test.ExpectedUnification, ActualUnification = unification })
                 .ToList();
 
             Assert.IsFalse(wrongUnifications.Any(), string.Join(Environment.NewLine, wrongUnifications));
         }
+
+        private static UnificationResult CarryOutUnification((string First, string Second) expressions) =>
+            Unification.CarryOut(
+                PrologParser.ParseTerm(expressions.First), 
+                PrologParser.ParseTerm(expressions.Second));
 
         private static readonly Variable X = new ("X", false);
         private static readonly Variable X1 = new ("X1", false);

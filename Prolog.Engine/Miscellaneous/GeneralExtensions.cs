@@ -21,5 +21,8 @@ namespace Prolog.Engine.Miscellaneous
             => EqualityComparer<T>.Default.Equals(value, alternative1) || 
                EqualityComparer<T>.Default.Equals(value, alternative2) ||
                EqualityComparer<T>.Default.Equals(value, alternative3);
+
+        public static Type RemoveNullability(this Type @this) =>
+            Nullable.GetUnderlyingType(@this) ?? @this;
     }
 }

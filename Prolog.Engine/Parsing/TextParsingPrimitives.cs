@@ -86,7 +86,7 @@ namespace Prolog.Engine.Parsing
             SkipWhitespaces.Then<string, string>(
                 input => input.Text.IndexOf(lexem, input.Position, StringComparison.Ordinal) switch
                 {
-                    int foundOffset when foundOffset >= 0 => 
+                    var foundOffset when foundOffset >= 0 => 
                         Right(
                             Result(
                                 input.Text.Substring(input.Position, foundOffset - input.Position), 

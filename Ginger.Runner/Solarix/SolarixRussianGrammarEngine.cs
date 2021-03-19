@@ -11,8 +11,9 @@ namespace Ginger.Runner.Solarix
 {
     using static MayBe;
     using static MakeCompilerHappy;
+    using static Impl;
 
-    internal sealed class SolarixRussianGrammarEngine : IRussianGrammarParser
+    internal sealed class SolarixRussianGrammarEngine : IRussianGrammarParser, IRussianLexicon
     {
         public SolarixRussianGrammarEngine()
         {
@@ -60,7 +61,7 @@ namespace Ginger.Runner.Solarix
                                 GetNodeVersionCoordinateState<VerbForm>(hNode, versionIndex),
                                 TryGetNodeVersionCoordinateState<Person>(hNode, versionIndex),
                                 GetNodeVersionCoordinateState<VerbAspect>(hNode, versionIndex),
-                                GetNodeVersionCoordinateState<Tense>(hNode, versionIndex),
+                                TryGetNodeVersionCoordinateState<Tense>(hNode, versionIndex),
                                 TryGetNodeVersionCoordinateState<Transitiveness>(hNode, versionIndex))
                     },
                     {
@@ -89,7 +90,8 @@ namespace Ginger.Runner.Solarix
                         PartOfSpeech.Местоимение,
                         (hNode, versionIndex) =>
                             new PronounCharacteristics(
-                                GetNodeVersionCoordinateState<Gender>(hNode, versionIndex),
+                                GetNodeVersionCoordinateState<Case>(hNode, versionIndex),
+                                TryGetNodeVersionCoordinateState<Gender>(hNode, versionIndex),
                                 GetNodeVersionCoordinateState<Number>(hNode, versionIndex),
                                 GetNodeVersionCoordinateState<Person>(hNode, versionIndex))
                     },
@@ -97,22 +99,35 @@ namespace Ginger.Runner.Solarix
                         PartOfSpeech.Инфинитив,
                         (hNode, versionIndex) =>
                             GetNodeVersionCoordinateState<VerbAspect>(hNode, versionIndex).Apply(
-                                verbAspect => verbAspect == VerbAspect.Совершенный 
-                                    ? new InfinitiveCharacteristics(
+                                verbAspect => 
+                                    new InfinitiveCharacteristics(
                                         GetNodeVersionCoordinateState<VerbAspect>(hNode, versionIndex),
                                         GetNodeVersionCoordinateState<Transitiveness>(hNode, versionIndex),
-                                        GrammarEngine.sol_GetNodeContentsFX(hNode))
-                                    : new InfinitiveCharacteristics(
-                                        GetNodeVersionCoordinateState<VerbAspect>(hNode, versionIndex),
-                                        GetNodeVersionCoordinateState<Transitiveness>(hNode, versionIndex),
-                                        GetPerfectFormOfInfinitive(hNode).OrElse(string.Empty)))
+                                        verbAspect == VerbAspect.Совершенный 
+                                            ? GrammarEngine.sol_GetNodeContentsFX(hNode)
+                                            : GetPerfectFormOfInfinitive(hNode).OrElse(string.Empty)))
                     }
                 };
+
+                _knownCoordStateNames = (
+                    from it in CoordinateStateTypeToCoordinateIdMap
+                    from attributeId in Enum.GetValues(it.Key).Cast<int>()
+                    let coordStateName = GetCoordStateName(it.Value, attributeId)
+                    where !string.IsNullOrEmpty(coordStateName)
+                    select (coordStateName, CoordType: it.Key, StateId: attributeId)
+                ).ToDictionary(it => it.coordStateName, it => (it.CoordType, it.StateId), RussianIgnoreCase);
+
+                string GetCoordStateName(int categoryId, int attrId)
+                {
+                    var buffer = CreateBuffer();
+                    SuppressCa1806(GrammarEngine.sol_GetCoordStateName(_engineHandle, categoryId, attrId, buffer));
+                    return buffer.ToString();
+                }
         }
 
         public IReadOnlyCollection<SentenceElement> Parse(string text)
         {
-            IntPtr hPack = IntPtr.Zero;
+            var hPack = IntPtr.Zero;
             try
             {
                 hPack = GrammarEngine.sol_SyntaxAnalysis(
@@ -121,7 +136,7 @@ namespace Ginger.Runner.Solarix
                     GrammarEngine.MorphologyFlags.SOL_GREN_MODEL,
                     GrammarEngine.SyntaxFlags.DEFAULT,
                     (20 << 22) | 30000,
-                    RussianLanguage);
+                    GrammarEngineAPI.RUSSIAN_LANGUAGE);
 
                 if (hPack == IntPtr.Zero)
                 {
@@ -144,6 +159,94 @@ namespace Ginger.Runner.Solarix
             }
         }
 
+        public string GenerateWordForm(string word, PartOfSpeech? partOfSpeech, GrammarCharacteristics characteristics)
+        {
+            var entryId = GrammarEngine.sol_FindEntry(
+                _engineHandle, 
+                word, 
+                partOfSpeech.HasValue ? (int)partOfSpeech.Value : -1,
+                GrammarEngineAPI.RUSSIAN_LANGUAGE);
+
+            if (entryId == -1)
+            {
+                throw new NotImplementedException($"Could not find {partOfSpeech} '{word}' in lexicon.");
+            }
+
+            var result = GenerateWordForms(
+                    entryId, 
+                    characteristics.ToCoordIdStateIdPairArray(
+                        (coordId, stateId) => coordId.IsOneOf(GrammarEngineAPI.CASE_ru, GrammarEngineAPI.NUMBER_ru) 
+                            ? (coordId, stateId)
+                            : default((int, int)?)))
+                    .FirstOrDefault();
+
+            return !string.IsNullOrEmpty(result)
+                ? result
+                : throw new InvalidOperationException($"Could not put the word 'word' to the form {characteristics}");
+        }
+
+        public string GetPluralForm(LemmaVersion lemmaVersion)
+        {
+            ProgramLogic.Check(
+                (lemmaVersion.Characteristics.TryGetNumber() ?? Number.Единственное) == Number.Единственное,
+                $"An attempt was made to get plural form of a lemma ({lemmaVersion}) that is already in Plural form. " +
+                "This is the indication that a generative pattern contains a Plurality Sensitive hint {мн.} on word in plural form.");
+
+            var lemmaState = lemmaVersion.Characteristics.ToCoordIdStateIdPairArray(
+                (coordinateId, stateId) => coordinateId switch 
+                    {
+                        GrammarEngineAPI.NUMBER_ru => (coordinateId, GrammarEngineAPI.PLURAL_NUMBER_ru),
+                        GrammarEngineAPI.GENDER_ru => (coordinateId, GrammarEngineAPI.MASCULINE_GENDER_ru),
+                        _ => (coordinateId, stateId)
+                    });
+
+            var entryId = TryFindMasculineForm(lemmaVersion).OrElse(lemmaVersion.EntryId);
+
+            return (
+                from wordForm in GenerateWordForms(entryId, new[] { (GrammarEngineAPI.NUMBER_ru, GrammarEngineAPI.PLURAL_NUMBER_ru) })
+                from wordFormLemmaState in ProjectWord(wordForm, GetProjectionCharacteristics, lemmaVersion.PartOfSpeech)
+                let numberOfMatchingCoordinates = lemmaState.Intersect(wordFormLemmaState).Count()
+                orderby numberOfMatchingCoordinates descending
+                select wordForm.ToLower(Russian))
+                .TryFirst()
+                .OrElse(() => throw new InvalidOperationException($"Could not find plural form for {lemmaVersion}"));
+
+            (int CoordinateId, int StateId)[] GetProjectionCharacteristics(IntPtr hProjs, int i) =>
+                lemmaState
+                    .Select(it => (it.CoordinateId, GrammarEngine.sol_GetProjCoordState(_engineHandle, hProjs, i, it.CoordinateId)))
+                    .ToArray();
+        }
+
+        public string GetPartOfSpeechName(PartOfSpeech partOfSpeech)
+        {
+            var buffer = CreateBuffer();
+            SuppressCa1806(GrammarEngine.sol_GetClassName(_engineHandle, (int)partOfSpeech, buffer));
+            buffer.Append('.');
+            return buffer.ToString().ToLower(Russian);
+        }
+
+        public string GetStateName(int categoryId, int stateId)
+        {
+            var buffer = CreateBuffer();
+            SuppressCa1806(GrammarEngine.sol_GetCoordStateName(_engineHandle, categoryId, stateId, buffer));
+            buffer.Append('.');
+            return buffer.ToString().ToLower(Russian);
+        }
+
+        public (Type[] CoordinateTypes, int[] CoordinateEnumValues) ResolveCoordinates(IEnumerable<string> valueNames) 
+        {
+            var result = valueNames.Select(name => _knownCoordStateNames[name]).ToArray();
+            return (
+                Array.ConvertAll(result, it => it.CoordinateType),
+                Array.ConvertAll(result, it => it.StateId)
+                );
+        }
+
+        public void Dispose()
+        {
+            _engineHandle.Dispose();
+        }
+
         private SentenceElement CreateSentenceElement(IntPtr hNode, int? leafType = null)
         {
             var content = GrammarEngine.sol_GetNodeContentsFX(hNode);
@@ -159,34 +262,13 @@ namespace Ginger.Runner.Solarix
                 {
                     var entryVersionId = item.EntryVersionId;
                     var versionIndex = item.VersionIndex;
-                    var lemma = new StringBuilder(LongestWordLength);
+                    var lemma = CreateBuffer();
                     SuppressCa1806(GrammarEngine.sol_GetEntryName(_engineHandle, entryVersionId, lemma));
 
                     var partOfSpeechIndex = GrammarEngine.sol_GetEntryClass(_engineHandle, entryVersionId);
                     var partOfSpeech = partOfSpeechIndex < 0 ? (PartOfSpeech?)null : (PartOfSpeech)partOfSpeechIndex;
                     var grammarCharacteristcs = BuldGrammarCharacteristics(hNode, versionIndex, partOfSpeech);
-                    foreach (var coordinateId in new[] { GrammarEngineAPI.CASE_ru, GrammarEngineAPI.NUMBER_ru, GrammarEngineAPI.GENDER_ru,
-                                                 GrammarEngineAPI.VERB_FORM_ru, GrammarEngineAPI.PERSON_ru, GrammarEngineAPI.ASPECT_ru,
-                                                 GrammarEngineAPI.TENSE_ru, GrammarEngineAPI.SHORTNESS_ru,
-                                                 GrammarEngineAPI.FORM_ru, GrammarEngineAPI.COMPAR_FORM_ru })
-                    {
-                        var stateName = new StringBuilder(100);
-                        SuppressCa1806(GrammarEngine.sol_GetCoordName(_engineHandle, coordinateId, stateName));
-                        var stateValue = new StringBuilder(100);
-                        if (GrammarEngine.sol_CountCoordStates(_engineHandle, coordinateId) != 0)
-                        {
-                            var coordState = GrammarEngine.sol_GetNodeVerCoordState(hNode, versionIndex, coordinateId);
-
-                            if (coordState < 0)
-                            {
-                                continue;
-                            }
-
-                            SuppressCa1806(GrammarEngine.sol_GetCoordStateName(_engineHandle, coordinateId, coordState, stateValue));
-                        }
-                    }
-
-                    return new LemmaVersion(lemma.ToString(), partOfSpeech, grammarCharacteristcs);
+                    return new LemmaVersion(lemma.ToString(), entryVersionId, partOfSpeech, grammarCharacteristcs);
                 });
 
             var children = Enumerable.Range(0, GrammarEngine.sol_CountLeafs(hNode))
@@ -197,22 +279,74 @@ namespace Ginger.Runner.Solarix
             return new SentenceElement(
                 Content: content,
                 LeafLinkType: leafType == null || leafType.Value < 0 ? (LinkType?)null : (LinkType)leafType.Value,
-                LemmaVersions: lemmaVersions.AsImmutable(), 
+                LemmaVersions: lemmaVersions.Distinct().AsImmutable(), 
                 Children: children.ToList());
         }
 
-        public void Dispose()
+        private IReadOnlyCollection<string> GenerateWordForms(int entryId, (int CoordinateId, int StateId)[] coordinateStates)
         {
-            _engineHandle.Dispose();
+            var grammarForms = coordinateStates.SelectMany(cs => new[] { cs.CoordinateId, cs.StateId }).ToArray();
+            var hstr = GrammarEngine.sol_GenerateWordforms(_engineHandle, entryId, coordinateStates.Length, grammarForms);
+            var result = Enumerable
+                            .Range(0, GrammarEngine.sol_CountStrings(hstr))
+                            .Select(i => GrammarEngine.sol_GetStringFX(hstr, i).ToLower(Russian))
+                            .AsImmutable();
+            SuppressCa1806(GrammarEngine.sol_DeleteStrings(hstr));
+            return result;
         }
 
-        private string DescribeError()
+        private IReadOnlyCollection<T> ProjectWord<T>(
+            string word, 
+            Func<IntPtr, int, T> projectionSelector, 
+            PartOfSpeech? partOfSpeech = default)
         {
-            var errorLength = GrammarEngine.sol_GetErrorLen(_engineHandle);
-            var errorBuffer = new StringBuilder(errorLength);
-            var errorCode = GrammarEngine.sol_GetError(_engineHandle, errorBuffer, errorLength);
-            return errorCode == 1 ? errorBuffer.ToString() : "Unknown error";
+            var hProjs = GrammarEngine.sol_ProjectWord(_engineHandle, word, 0);
+            var result = Enumerable
+                            .Range(0, GrammarEngine.sol_CountProjections(hProjs))
+                            .Where(i => partOfSpeech == null || 
+                                   (int)partOfSpeech.Value == GetProjClass(hProjs, i))
+                            .Select(i => projectionSelector(hProjs, i))
+                            .AsImmutable();
+            GrammarEngine.sol_DeleteProjections(hProjs);
+            return result;
+
+            int GetProjClass(IntPtr projections, int i) =>
+                GrammarEngine.sol_GetEntryClass(
+                    _engineHandle, 
+                    GrammarEngine.sol_GetIEntry(projections, i));
         }
+
+        MayBe<int> TryFindMasculineForm(LemmaVersion lemmaVersion) =>
+            lemmaVersion.Characteristics switch
+            {
+                NounCharacteristics noun => noun.Gender == Gender.Мужской 
+                    ? Some(lemmaVersion.EntryId) 
+                    : TryFindLinks(lemmaVersion.EntryId, GrammarEngineAPI.SEX_SYNONYM_link)
+                        .TryFirst(entryId => GrammarEngineAPI.MASCULINE_GENDER_ru ==
+                                  GrammarEngine.sol_GetEntryCoordState(_engineHandle, entryId, GrammarEngineAPI.GENDER_ru)),
+                _ => Some(lemmaVersion.EntryId)
+            };
+
+        IReadOnlyCollection<int> TryFindLinks(int entryId, int linkType)
+        {
+            var linksList = GrammarEngine.sol_ListLinksTxt(_engineHandle, entryId, linkType, 0);
+            if (linksList == IntPtr.Zero)
+            {
+                return Array.Empty<int>();
+            }
+
+            var result = Enumerable
+                .Range(0, GrammarEngine.sol_LinksInfoCount(_engineHandle, linksList))
+                .Select(i => GrammarEngine.sol_LinksInfoEKey2(_engineHandle, linksList, i))
+                .AsImmutable();
+
+            SuppressCa1806(GrammarEngine.sol_DeleteLinksInfo(_engineHandle, linksList));
+
+            return result;
+        }
+
+        private string DescribeError() => 
+            GrammarEngine.sol_GetErrorFX(_engineHandle);
 
         private static string DefaultSolarixDictionaryXmlPath => 
             Path.GetFullPath(Path.Combine(Directory.GetParent(Assembly.GetExecutingAssembly().Location)!.FullName, @"dictionary.xml"));
@@ -324,30 +458,16 @@ namespace Ginger.Runner.Solarix
 
         private string GetEntryName(int entryId)
         {
-            var buffer = new StringBuilder(LongestWordLength);
+            var buffer = CreateBuffer();
             SuppressCa1806(GrammarEngine.sol_GetEntryName(_engineHandle, entryId, buffer));
             return buffer.ToString();
         }
 
+        private StringBuilder CreateBuffer() =>
+            new (GrammarEngine.sol_MaxLexemLen(_engineHandle));
+
         private readonly DisposableIntPtr _engineHandle;
-        private readonly IDictionary<PartOfSpeech, Func<IntPtr, int, GrammarCharacteristics>> _grammarCharacteristicsBuilders; 
-
-        private static readonly IDictionary<Type, int> CoordinateStateTypeToCoordinateIdMap = 
-            new Dictionary<Type, int>
-            {
-                { typeof(Case), GrammarEngineAPI.CASE_ru },
-                { typeof(Number), GrammarEngineAPI.NUMBER_ru },
-                { typeof(Gender), GrammarEngineAPI.GENDER_ru },
-                { typeof(Form), GrammarEngineAPI.FORM_ru },
-                { typeof(Person), GrammarEngineAPI.PERSON_ru },
-                { typeof(VerbForm), GrammarEngineAPI.VERB_FORM_ru },
-                { typeof(VerbAspect), GrammarEngineAPI.ASPECT_ru },
-                { typeof(Tense), GrammarEngineAPI.TENSE_ru },
-                { typeof(ComparisonForm), GrammarEngineAPI.COMPAR_FORM_ru },
-                { typeof(Transitiveness), GrammarEngineAPI.TRANSITIVENESS_ru }
-            };
-
-        private const int RussianLanguage = 2;
-        private const int LongestWordLength = 100;
+        private readonly IDictionary<PartOfSpeech, Func<IntPtr, int, GrammarCharacteristics>> _grammarCharacteristicsBuilders;
+        private readonly IReadOnlyDictionary<string, (Type CoordinateType, int StateId)> _knownCoordStateNames;
     }
 }

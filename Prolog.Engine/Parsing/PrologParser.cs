@@ -28,8 +28,6 @@ namespace Prolog.Engine.Parsing
             TryParseCore(PrologParsers.TermParser, input, string.Empty)
             .Fold(_ => MakeNone<Term>(), Some);
 
-        public static event Action<string>? ParsingEvent;
-
         private static T TryParse<T>(Parser<T> parser, string input, string errorMessage) =>
             TryParseCore(parser, input, errorMessage)
             .Fold(error => throw error, result => result);
@@ -47,31 +45,29 @@ namespace Prolog.Engine.Parsing
             Parser<IReadOnlyCollection<IReadOnlyCollection<ComplexTerm>>> QueryParser,
             Parser<Term> TermParser) BuildParsers()
         {
-            var tracer = new ParsingTracer(text => ParsingEvent?.Invoke(text));
-
-            var comma = tracer.Trace(
+            var comma = Tracer.Trace(
                         Lexem(","), 
                         "comma");
 
-            var unquotedAtom = tracer.Trace(
+            var unquotedAtom = Tracer.Trace(
                         from atomText in Lexem(
                             ch => char.IsLetter(ch) && char.IsLower(ch), 
                             ch => char.IsLetterOrDigit(ch) || ch == '_')
                         select Atom(atomText),
                         "unquotedAtom");
 
-            var quotedAtom = tracer.Trace(
+            var quotedAtom = Tracer.Trace(
                         from unused1 in SkipWhitespaces.Then(Expect('\''))
                         from letters in Repeat(Expect(ch => ch != '\'', ignoreCommentCharacter: true))
                         from unused2 in Expect('\'')
                         select Atom(string.Join(string.Empty, letters)),
                         "quotedAtom");
 
-            var atom = tracer.Trace(
+            var atom = Tracer.Trace(
                         Or(quotedAtom, unquotedAtom), 
                         "atom");
 
-            var number = tracer.Trace(
+            var number = Tracer.Trace(
                         from sign in Optional(Lexem("+", "-"))
                         let multiplier = sign.Map(s => s == "-" ? -1 : 1).OrElse(1)
                         from digits in SkipWhitespaces.Then(Repeat(Expect(char.IsDigit), atLeastOnce: true))
@@ -79,7 +75,7 @@ namespace Prolog.Engine.Parsing
                         select Number(multiplier * int.Parse(v, CultureInfo.InvariantCulture)),
                         "number");
 
-            var variable = tracer.Trace(
+            var variable = Tracer.Trace(
                         from name in Lexem(
                             ch => ch == '_' || (char.IsLetter(ch) && char.IsUpper(ch)),
                             ch => char.IsLetterOrDigit(ch) || ch == '_')
@@ -87,7 +83,7 @@ namespace Prolog.Engine.Parsing
                         "variable");
 
             Parser<Term>? term = null;
-            var complexTerm = tracer.Trace(
+            var complexTerm = Tracer.Trace(
                         from functorName in SkipWhitespaces.Then(unquotedAtom)
                         from unused1 in Lexem("(")
 // ReSharper disable once AccessToModifiedClosure
@@ -96,12 +92,14 @@ namespace Prolog.Engine.Parsing
                         select ComplexTerm(Functor(functorName.Characters, arguments.Count), arguments),
                         "complexTerm");
 
-            var infixExpressionOrSingleTerm = tracer.Trace(
+            var infixExpressionOrSingleTerm = Tracer.Trace(
                         from delayUsage in ForwardDeclaration(term)
+// ReSharper disable once AccessToModifiedClosure
                         from term1 in term!
                         from operationAndSecondTerm in Optional(
                                     from @operator in Lexem(Builtin.BinaryOperators.Keys.ToArray())
                                     let complexTermFactory = Builtin.BinaryOperators[@operator]
+// ReSharper disable once AccessToModifiedClosure
                                     from rightPart in term!
                                     select (complexTermFactory, rightPart))
                         select operationAndSecondTerm
@@ -109,14 +107,14 @@ namespace Prolog.Engine.Parsing
                             .OrElse(() => term1),
                         "infixExpressionOrSingleTerm");
 
-            var explicitList = tracer.Trace(
+            var explicitList = Tracer.Trace(
                         from delayUsage in ForwardDeclaration(term)
 // ReSharper disable once AccessToModifiedClosure
                         from elements in Repeat(infixExpressionOrSingleTerm, separatorParser: comma)
                         select List(elements.Reverse()),
                         "explicitList");
 
-            var barList = tracer.Trace(
+            var barList = Tracer.Trace(
                         from delayUsage in ForwardDeclaration(term)
 // ReSharper disable once AccessToModifiedClosure
                         from head in infixExpressionOrSingleTerm
@@ -126,18 +124,18 @@ namespace Prolog.Engine.Parsing
                         select Dot(head, tail),
                         "barList");
 
-            var list = tracer.Trace(
+            var list = Tracer.Trace(
                         from unused in Lexem("[")
                         from elements in Or(barList, explicitList)
                         from unused1 in Lexem("]")
                         select elements,
                         "list");
 
-            term = tracer.Trace(
+            term = Tracer.Trace(
                 Or(AsTerm(list), AsTerm(complexTerm), AsTerm(variable), AsTerm(number), AsTerm(atom)),
                 "term");
 
-            var infixExpression = tracer.Trace(
+            var infixExpression = Tracer.Trace(
                         from leftPart in term!
                         from @operator in Lexem(Builtin.BinaryOperators.Keys.ToArray())
                         let complexTermFactory = Builtin.BinaryOperators[@operator]
@@ -145,17 +143,17 @@ namespace Prolog.Engine.Parsing
                         select complexTermFactory(leftPart, rightPart),
                         "infixExpression");
 
-            var cut = tracer.Trace(
+            var cut = Tracer.Trace(
                         from unused in Lexem("!")
                         select Cut,
                         "cut");
 
-            var fail = tracer.Trace(
+            var fail = Tracer.Trace(
                         from unused in Lexem("fail")
                         select Fail,
                         "fail");
 
-            var premise = tracer.Trace(
+            var premise = Tracer.Trace(
                         Or(
                             cut, 
                             fail, 
@@ -164,21 +162,21 @@ namespace Prolog.Engine.Parsing
                             variable.Select(Call)),
                         "premise");
 
-            var fact = tracer.Trace(
+            var fact = Tracer.Trace(
                         from conclusion in complexTerm
                         from unused in Lexem(".")
                         select Fact(conclusion),
                         "fact");
 
-            var premisesGroup = tracer.Trace(
+            var premisesGroup = Tracer.Trace(
                         Repeat(premise, separatorParser: comma, atLeastOnce: true),
                         "premisesGroup");
 
-            var premisesAlternatives = tracer.Trace(
+            var premisesAlternatives = Tracer.Trace(
                         Repeat(premisesGroup, separatorParser: Lexem(";"), atLeastOnce: true),
                         "premisesAlternatives");
 
-            var rule = tracer.Trace(
+            var rule = Tracer.Trace(
                         from conclusion in complexTerm
                         from unused in Lexem(":-")
                         from premisesAlternative in premisesAlternatives
@@ -188,7 +186,7 @@ namespace Prolog.Engine.Parsing
                                 .ToArray(),
                         "rule");
 
-            var program = tracer.Trace(
+            var program = Tracer.Trace(
                 from ruleGroup in Repeat(Or(rule, fact.Select(f => new[] { f })))
                 select ruleGroup.SelectMany(r => r).AsImmutable(),
                 "program");

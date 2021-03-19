@@ -93,7 +93,7 @@ namespace Prolog.Engine
                                         .TryFirst(it => it.unification.Succeeded)
                                         .Map(it => (it.unification, state.MatchedElements.AddAndReturnSelf(it.t), state.ResultingList))
                                         .OrElse(() => (state.UnificationResult, state.MatchedElements, Dot(term, state.ResultingList))))
-                                .Apply(state => Unification.Success(resultList, ReverseList(state.ResultingList))
+                            .Apply(state => Unification.Success(resultList, ReverseList(state.ResultingList))
                                                 .And(state.UnificationResult)),
                     _ => throw TypeError("first and second parameters of 'subtract' predicate should be lists, and the third one should be a variable")
                 });

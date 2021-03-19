@@ -4,7 +4,6 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using Prolog.Engine;
 using Prolog.Engine.Miscellaneous;
 using Prolog.Engine.Parsing;
 using Ginger.Runner.Solarix;
@@ -18,11 +17,12 @@ namespace Ginger.Runner
     using static TextParsingPrimitives;
 
     using WordOrQuotation = Either<Word, Quotation>;
+    using ConcreteUnderstander = Func<Either<Word, Quotation>, MayBe<UnderstoodSentence>>;
 
     internal sealed class SentenceUnderstander
     {
         public SentenceUnderstander(
-            IEnumerable<Func<WordOrQuotation, MayBe<UnderstoodSentence>>> phraseTypeUnderstanders)
+            IEnumerable<ConcreteUnderstander> phraseTypeUnderstanders)
         {
             _phraseTypeUnderstanders = phraseTypeUnderstanders.AsImmutable();
         }
@@ -33,12 +33,13 @@ namespace Ginger.Runner
                 .TryFirst(result => result.HasValue)
                 .OrElse(None);
 
-        public static SentenceUnderstander LoadFromEmbeddedResources(IRussianGrammarParser grammarParser) =>
-            new (ParsePatterns(ReadEmbeddedResource("Ginger.Runner.SentenceUnderstandingRules.txt"), grammarParser)
-                 .Select(parsedPattern => PatternBuilder.BuildPattern(
-                    parsedPattern.PatternId, 
-                    parsedPattern.Pattern, 
-                    parsedPattern.Meaning)));
+        public static SentenceUnderstander LoadFromEmbeddedResources(
+            IRussianGrammarParser grammarParser,
+            IRussianLexicon russianLexicon) 
+        =>
+            new (from generativePattern in ParsePatterns(ReadEmbeddedResource("Ginger.Runner.SentenceUnderstandingRules.txt"))
+                 from concreteUnderstander in generativePattern.GenerateConcreteUnderstanders(grammarParser, russianLexicon)
+                 select concreteUnderstander);
 
         private static TextInput ReadEmbeddedResource(string name)
         {
@@ -49,9 +50,7 @@ namespace Ginger.Runner
             return new (reader.ReadToEnd(), 0);
         }
 
-        private static IEnumerable<ParsedPattern> ParsePatterns(
-            TextInput rulesText, 
-            IRussianGrammarParser grammarParser)
+        private static IEnumerable<GenerativePattern> ParsePatterns(TextInput rulesText)
         {
             var tracer = new ParsingTracer(text => Log(text));
 
@@ -64,9 +63,9 @@ namespace Ginger.Runner
 
             var singlePattern = tracer.Trace(
                 from id in patternId
-                from pattern in ReadTill("::=")
-                from meaning in PrologParsers.ProgramParser
-                select new ParsedPattern(id, grammarParser.ParseAnnotated(pattern), meaning),
+                from generativePattern in ReadTill("::=")
+                from generativeMeaning in PrologParsers.ProgramParser
+                select new GenerativePattern(id, generativePattern, generativeMeaning),
                 "singlePattern");
 
             var patterns = tracer.Trace(Repeat(singlePattern), "patterns");
@@ -80,8 +79,6 @@ namespace Ginger.Runner
         private static void Log(string text) =>
             Trace.WriteLine(text);
 
-        private readonly IReadOnlyCollection<Func<WordOrQuotation, MayBe<UnderstoodSentence>>> _phraseTypeUnderstanders;
-
-        private record ParsedPattern(string PatternId, AnnotatedSentence Pattern, IReadOnlyCollection<Rule> Meaning);
+        private readonly IReadOnlyCollection<ConcreteUnderstander> _phraseTypeUnderstanders;
     }
 }

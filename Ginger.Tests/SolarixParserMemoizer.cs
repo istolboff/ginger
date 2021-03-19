@@ -13,6 +13,7 @@ using Ginger.Runner.Solarix;
 namespace Ginger.Tests
 {
     using static MayBe;
+    using static Impl;
 
     internal sealed class SolarixParserMemoizer : IRussianGrammarParser
     {
@@ -74,7 +75,10 @@ namespace Ginger.Tests
             return File
                 .ReadLines(DataFilePath, Encoding.UTF8)
                 .Partition((text, serializedData) => new { text, serializedData })
-                .ToDictionary(item => item.text, item => new Lazy<IReadOnlyCollection<SentenceElement>>(() => Deserialize(item.serializedData)));
+                .ToDictionary(
+                    item => item.text, 
+                    item => new Lazy<IReadOnlyCollection<SentenceElement>>(() => Deserialize(item.serializedData)),
+                    RussianIgnoreCase);
         }
 
         private static string Serialize(IReadOnlyCollection<SentenceElement> sentenceElements)

@@ -133,5 +133,10 @@ namespace Prolog.Engine.Parsing
 
         public static Result<TValue> Result<TValue>(TValue value, TextInput rest) =>
             new (value, rest);
+
+        
+        public static readonly ParsingTracer Tracer = new (text => ParsingEvent?.Invoke(text));
+
+        public static event Action<string>? ParsingEvent;
     }
 }

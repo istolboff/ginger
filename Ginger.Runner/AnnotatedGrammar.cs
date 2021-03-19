@@ -9,6 +9,7 @@ namespace Ginger.Runner
     using WordOrQuotation = Either<Word, Quotation>;
 
     internal sealed record AnnotatedSentence(
+        string Text,
         WordOrQuotation Sentence,
         IReadOnlyCollection<string> AnnotatedWords,
         IReadOnlyCollection<LemmaVersion> AnnotatedWordLemmas)
@@ -22,12 +23,12 @@ namespace Ginger.Runner
 
     internal static class AnnotatedGrammar
     {
-        public static AnnotatedSentence ParseAnnotated(this IRussianGrammarParser @this, string text)
+        public static AnnotatedSentence ParseAnnotated(this IRussianGrammarParser @this, DisambiguatedPattern disambiguatedPattern)
         {
-            var sentence = @this.ParsePreservingQuotes(RemoveAnnotations(text)).Single();
-            var annotatedWords = GetAnnotatedWords(text);
+            var sentence = @this.ParsePreservingQuotes(RemoveAnnotations(disambiguatedPattern)).Single();
+            var annotatedWords = GetAnnotatedWords(disambiguatedPattern.PlainText);
             var andAllTheirLemmas = GetAllWordLemmas(sentence, annotatedWords).AsImmutable();
-            return new (sentence, annotatedWords, andAllTheirLemmas.ToHashSet());
+            return new (disambiguatedPattern.PlainText, sentence, annotatedWords, andAllTheirLemmas.ToHashSet());
         }
 
         private static IReadOnlyCollection<string> GetAnnotatedWords(string text) =>
@@ -36,8 +37,11 @@ namespace Ginger.Runner
                 .SelectMany(m => m.Groups[1].Value.Split(' ', ',', ';', '-', ':'))
                 .AsImmutable();
 
-        private static string RemoveAnnotations(string text) =>
-            AnnotatedWordsMatcher.Replace(text, m => m.Groups[1].Value);
+        private static DisambiguatedPattern RemoveAnnotations(DisambiguatedPattern disambiguatedPattern) =>
+            disambiguatedPattern with 
+            {
+                PlainText = AnnotatedWordsMatcher.Replace(disambiguatedPattern.PlainText, m => m.Groups[1].Value)
+            };
 
         private static IEnumerable<LemmaVersion> GetAllWordLemmas(
             WordOrQuotation wordOrQuotation, 

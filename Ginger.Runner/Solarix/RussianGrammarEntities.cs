@@ -1,4 +1,8 @@
+using System;
 using System.Collections.Generic;
+using System.Globalization;
+using System.Linq;
+using Prolog.Engine.Miscellaneous;
 using SolarixGrammarEngineNET;
 
 namespace Ginger.Runner.Solarix
@@ -209,7 +213,90 @@ namespace Ginger.Runner.Solarix
         Компаратив2 = GrammarEngineAPI.LIGHT_COMPAR_FORM_RU
     }
 
-    internal abstract record GrammarCharacteristics;
+    internal static class Impl
+    {
+        public static readonly CultureInfo Russian = CultureInfo.GetCultureInfo("ru");
+
+        public static readonly StringComparer RussianIgnoreCase = StringComparer.Create(Russian, ignoreCase: true);
+
+        public static IReadOnlyCollection<GrammarCharacteristics> GrammarCharacteristicsInstances =>
+            new GrammarCharacteristics[]
+            {
+                new AdjectiveCharacteristics(default, default, default, default, default),
+                new VerbCharacteristics(default, default, default, default, default, default, default),
+                new NounCharacteristics(default, default, default, default),
+                new VerbalNounCharacteristics(default, default, default, default, string.Empty),
+                new PronounCharacteristics(default, default, default, default),
+                new AdverbCharacteristics(default),
+                new GerundCharacteristics(default, default),
+                new InfinitiveCharacteristics(default, default, string.Empty),
+                new NullGrammarCharacteristics()
+            };
+
+        public static IReadOnlyCollection<Type> GrammarCharacteristicsTypes =>
+            GrammarCharacteristicsInstances.Select(i => i.GetType()).AsImmutable();
+
+        public static readonly IReadOnlyDictionary<Type, int> CoordinateStateTypeToCoordinateIdMap = 
+            new Dictionary<Type, int>
+            {
+                { typeof(Case), GrammarEngineAPI.CASE_ru },
+                { typeof(Number), GrammarEngineAPI.NUMBER_ru },
+                { typeof(Gender), GrammarEngineAPI.GENDER_ru },
+                { typeof(Form), GrammarEngineAPI.FORM_ru },
+                { typeof(Person), GrammarEngineAPI.PERSON_ru },
+                { typeof(VerbForm), GrammarEngineAPI.VERB_FORM_ru },
+                { typeof(VerbAspect), GrammarEngineAPI.ASPECT_ru },
+                { typeof(Tense), GrammarEngineAPI.TENSE_ru },
+                { typeof(ComparisonForm), GrammarEngineAPI.COMPAR_FORM_ru },
+                { typeof(Transitiveness), GrammarEngineAPI.TRANSITIVENESS_ru },
+                { typeof(AdjectiveForm), GrammarEngineAPI.SHORTNESS_ru }
+            };
+    }
+
+    internal abstract record GrammarCharacteristics
+    {
+        public Number? TryGetNumber() =>
+            this switch
+            {
+                AdjectiveCharacteristics adjectiveCharacteristics => adjectiveCharacteristics.Number,
+                VerbCharacteristics verbCharacteristics => verbCharacteristics.Number,
+                NounCharacteristics nounCharacteristics => nounCharacteristics.Number,
+                PronounCharacteristics pronounCharacteristics => pronounCharacteristics.Number,
+                AdverbCharacteristics => default,
+                GerundCharacteristics => default,
+                InfinitiveCharacteristics => default,
+                NullGrammarCharacteristics => default,
+                _ => throw ProgramLogic.Error($"Please add switch branch for {GetType().Name} in GrammarCharacteristics.TryGetNumber()")
+            };
+
+        public Gender? TryGetGender() =>
+            this switch
+            {
+                AdjectiveCharacteristics adjectiveCharacteristics => adjectiveCharacteristics.Gender,
+                VerbCharacteristics => default(Gender?),
+                NounCharacteristics nounCharacteristics => nounCharacteristics.Gender,
+                PronounCharacteristics pronounCharacteristics => pronounCharacteristics.Gender,
+                AdverbCharacteristics => default(Gender?),
+                GerundCharacteristics => default(Gender?),
+                InfinitiveCharacteristics => default(Gender?),
+                NullGrammarCharacteristics => default(Gender?),
+                _ => throw ProgramLogic.Error($"Please add switch branch for {GetType().Name} in GrammarCharacteristics.TryGetGender()")
+            };
+
+        public (int CoordinateId, int StateId)[] ToCoordIdStateIdPairArray(Func<int, int, (int CoordinateId, int StateId)?> adjustCoordIdStateIdPair) =>
+            (from property in GetType().GetProperties()
+            let propertyType = property.PropertyType.RemoveNullability()
+            let coordinateId = Impl.CoordinateStateTypeToCoordinateIdMap[propertyType]
+            let stateId = property.GetValue(this)
+            where stateId != null
+            let adjustedValues = adjustCoordIdStateIdPair(coordinateId, (int)stateId!)
+            where adjustedValues != null
+            select adjustedValues.Value
+            ).ToArray();
+
+        public (int CoordinateId, int StateId)[] ToCoordIdStateIdPairArray() =>
+            ToCoordIdStateIdPairArray((coordinateId, stateId) => (coordinateId, stateId));
+   }
 
 #pragma warning disable CA1801 // Review unused parameters
     internal sealed record AdjectiveCharacteristics(
@@ -226,7 +313,7 @@ namespace Ginger.Runner.Solarix
         VerbForm VerbForm, 
         Person? Person, 
         VerbAspect VerbAspect, 
-        Tense Tense,
+        Tense? Tense,
         Transitiveness? Transitiveness) 
         : GrammarCharacteristics;
 
@@ -242,7 +329,7 @@ namespace Ginger.Runner.Solarix
         string RelatedInfinitive) 
         : NounCharacteristics(Case, Number, Gender, Form);
 
-    internal sealed record PronounCharacteristics(Gender Gender, Number Number, Person Person) : GrammarCharacteristics;
+    internal sealed record PronounCharacteristics(Case Case, Gender? Gender, Number Number, Person Person) : GrammarCharacteristics;
 
     internal sealed record GerundCharacteristics(Case Case, VerbAspect VerbAspect) : GrammarCharacteristics;
 
@@ -255,7 +342,7 @@ namespace Ginger.Runner.Solarix
 
     internal sealed record NullGrammarCharacteristics : GrammarCharacteristics;
 
-    internal sealed record LemmaVersion(string Lemma, PartOfSpeech? PartOfSpeech, GrammarCharacteristics Characteristics);
+    internal sealed record LemmaVersion(string Lemma, int EntryId, PartOfSpeech? PartOfSpeech, GrammarCharacteristics Characteristics);
 
     internal sealed record SentenceElement(string Content, IReadOnlyCollection<LemmaVersion> LemmaVersions, IReadOnlyList<SentenceElement> Children, LinkType? LeafLinkType);
 // ReSharper restore UnusedMember.Global

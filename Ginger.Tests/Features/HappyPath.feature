@@ -1,5 +1,6 @@
 Feature: We generate testing scenarios from the formal description of the System Under Test
 
+@Ignore
 Scenario: Wolf-Goat-Cabbage riddle solving
    Given SUT is described as follows
     | Type              | Phrasing                                                                                      |

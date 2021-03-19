@@ -20,18 +20,18 @@ namespace Prolog.Tests
 
             _traceFilePath = GetTraceFilePath(testContext);
 
-            PrologParser.ParsingEvent += text => System.IO.File.AppendAllLines(_traceFilePath, new[] { text });
+            MonadicParsing.ParsingEvent += text => File.AppendAllLines(_traceFilePath, new[] { text });
             Proof.ProofEvent += (description, nestingLevel, @this) =>
             {
-                System.IO.File.AppendAllText(_traceFilePath, new string(' ', nestingLevel * 3));
+                File.AppendAllText(_traceFilePath, new string(' ', nestingLevel * 3));
 
                 if (description != null)
                 {
-                    System.IO.File.AppendAllText(_traceFilePath, $"{description}: ");
+                    File.AppendAllText(_traceFilePath, $"{description}: ");
                 }
 
-                System.IO.File.AppendAllText(_traceFilePath, Dump(@this));
-                System.IO.File.AppendAllLines(_traceFilePath, new[] { string.Empty });
+                File.AppendAllText(_traceFilePath, Dump(@this));
+                File.AppendAllLines(_traceFilePath, new[] { string.Empty });
             };
 
             _loggingInitialized = true;
@@ -47,7 +47,7 @@ namespace Prolog.Tests
         }
 
         private static string GetTraceFilePath(this TestContext testContext) =>
-            Path.Combine(testContext?.TestLogsDir ?? System.IO.Path.GetTempPath(), "Prolog.trace");
+            Path.Combine(testContext.TestLogsDir, "Prolog.trace");
 
         private static bool _loggingInitialized;
         private static string? _traceFilePath;

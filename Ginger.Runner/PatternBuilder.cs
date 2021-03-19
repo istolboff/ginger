@@ -14,29 +14,40 @@ namespace Ginger.Runner
     using static DomainApi;
     using static MayBe;
     using static Prolog.Engine.Parsing.PrologParser;
+    using static Impl;
 
     internal static class PatternBuilder
     {
         public static Func<WordOrQuotation, MayBe<UnderstoodSentence>> BuildPattern(
             string patternId, 
             AnnotatedSentence pattern,
-            IReadOnlyCollection<Rule> meaning)
+            IReadOnlyCollection<Rule> meaning,
+            IRussianLexicon russianLexicon)
         {
             var allWordsUsedInMeaning = new HashSet<string>(
                 meaning.SelectMany(ListUsedWords), 
-                StringComparer.OrdinalIgnoreCase);
+                RussianIgnoreCase);
             var (sentenceStructureChecker, pathesToWords) = BuildSentenceStructureChecker(
                 pattern,
                 allWordsUsedInMeaning,
                 ImmutableStack.Create<int>(),
-                new Dictionary<string, PathToWordBase>(StringComparer.OrdinalIgnoreCase));
+                new Dictionary<string, PathToWordBase>(RussianIgnoreCase),
+                russianLexicon);
             var ruleBuilders = meaning.Select(rule => MakeRuleBuilder(pattern.Sentence, rule, pathesToWords)).AsImmutable();
+            PatternEstablished?.Invoke(patternId, pattern, meaning);
             return sentence => sentenceStructureChecker(new CheckableSentenceElement(sentence, sentence)) switch
                 {
                     true => Some(new UnderstoodSentence(patternId, ruleBuilders.Select(rb => rb(sentence)).AsImmutable())),
                     _ => None
                 };
         }
+
+        public static Exception PatternBuildingException(string message, bool invalidOperation = false) =>
+            invalidOperation 
+                ? new InvalidOperationException(message) 
+                : new NotSupportedException(message);
+
+        public static event Action<string, AnnotatedSentence, IReadOnlyCollection<Rule>>? PatternEstablished;
 
         public static event Action<string, bool>? PatternRecognitionEvent;
 
@@ -59,7 +70,8 @@ namespace Ginger.Runner
                 AnnotatedSentence pattern,
                 IReadOnlySet<string> allWordsUsedInMeaning,
                 ImmutableStack<int> wordIndexes,
-                Dictionary<string, PathToWordBase> pathesToWords)
+                Dictionary<string, PathToWordBase> pathesToWords,
+                IRussianLexicon russianLexicon)
         {
             return (pattern.Sentence.Fold(BuildWordChecker, BuildQuotationChecker), new (pathesToWords));
 
@@ -67,9 +79,11 @@ namespace Ginger.Runner
             {
                 if (currentNode.LemmaVersions.Count > 1)
                 {
+                    var annotationVariants = string.Join(";", BuildDisambiguatingAnnotations(currentNode.LemmaVersions));
                     throw PatternBuildingException(
-                            $"There are several lemma versions in pattern '{currentNode}'. " +
-                            "Please adjust the pattern wording.", 
+                            $"There are several lemma versions of the word '{currentNode.Content}' in pattern '{pattern.Text}'. " +
+                            $"You can annotate the word with one of the following variants {annotationVariants}, " + 
+                            "or reformulate the pattern wording.", 
                             invalidOperation: true);
                 }
 
@@ -93,7 +107,7 @@ namespace Ginger.Runner
                 var childCheckers = BuildChildCheckers(currentNode.Children);
 
                 return checkableElement => 
-                    checkableElement.Current.Fold(word => word, _ => default(Word)) is Word currentWord &&
+                    checkableElement.Current.Fold(word => word, _ => default(Word)) is var currentWord &&
                     LogChecking(currentWord != null, log: "current element is not quotation") &&
                     LogChecking(log: currentWord!.Content) && 
                     LogChecking(
@@ -147,12 +161,19 @@ namespace Ginger.Runner
                                             pattern with { Sentence = children[i] }, 
                                             allWordsUsedInMeaning, 
                                             wordIndexes.Push(i), 
-                                            pathesToWords)
+                                            pathesToWords,
+                                            russianLexicon)
                                         .Checker;
                 }
 
                 return childCheckers;
             }
+
+            string BuildDisambiguatingAnnotations(IReadOnlyCollection<LemmaVersion> lemmaVersions) =>
+                string.Join(
+                    ", ", 
+                    LemmaVersionDisambiguator.Create(lemmaVersions)
+                        .ProposeDisambiguations(russianLexicon));
         }
 
         private static Func<WordOrQuotation, Rule> MakeRuleBuilder(
@@ -223,11 +244,6 @@ namespace Ginger.Runner
 
             throw PatternBuildingException($"Term {term} is not supported.");
         }
-
-        private static Exception PatternBuildingException(string message, bool invalidOperation = false) =>
-            invalidOperation 
-                ? new InvalidOperationException(message) 
-                : new NotSupportedException(message);
 
         private static IEnumerable<string> SplitTextAtUpperCharacters(string text)
         {

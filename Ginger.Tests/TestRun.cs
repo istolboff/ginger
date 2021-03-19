@@ -1,10 +1,7 @@
-using System;
-using System.Diagnostics;
 using BoDi;
 using Ginger.Runner;
 using Ginger.Runner.Solarix;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using Prolog.Engine.Parsing;
 using Prolog.Tests;
 using TechTalk.SpecFlow;
 
@@ -23,10 +20,12 @@ namespace Ginger.Tests
         [BeforeTestRun]
         public static void SetupTestRun(TestContext testContext)
         {
-            _russianGrammarParser = new SolarixParserMemoizer(new SolarixRussianGrammarEngine());
-            _sentenceUnderstander = SentenceUnderstander.LoadFromEmbeddedResources(_russianGrammarParser);
+            var russianGrammarEngine = new SolarixRussianGrammarEngine();
+            _russianGrammarParser = new SolarixParserMemoizer(russianGrammarEngine);
+            _russianLexicon = russianGrammarEngine;
+            _sentenceUnderstander = SentenceUnderstander.LoadFromEmbeddedResources(_russianGrammarParser, _russianLexicon);
             PrologLogging.Setup(testContext);
-            PatternBuilder.PatternRecognitionEvent += (log, success) => LogPatternRecognitionEvent(log, success);
+            PatternRecognitionLogging.Setup(testContext);
         }
 
         [AfterTestRun]
@@ -39,18 +38,14 @@ namespace Ginger.Tests
         public void SetupDiContainer()
         {
             _diContainer.RegisterInstanceAs(_russianGrammarParser);
+            _diContainer.RegisterInstanceAs(_russianLexicon);
             _diContainer.RegisterInstanceAs(_sentenceUnderstander);
-        }
-
-        [Conditional("UseLogging")]
-        private static void LogPatternRecognitionEvent(string log, bool checkSucceeded)
-        {
-            Console.WriteLine($"Check for {log} {(checkSucceeded ? "succeeded" : "failed")}");
         }
 
         private readonly IObjectContainer _diContainer;
 
         private static IRussianGrammarParser? _russianGrammarParser;
+        private static IRussianLexicon? _russianLexicon;
         private static SentenceUnderstander? _sentenceUnderstander; 
    }
 }

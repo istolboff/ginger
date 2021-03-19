@@ -13,6 +13,34 @@ namespace Ginger.Runner
     internal sealed record Quotation(string Content, IReadOnlyList<WordOrQuotation> Children);
 
     internal sealed record Word(string Content, IReadOnlyCollection<LemmaVersion> LemmaVersions, IReadOnlyList<WordOrQuotation> Children, LinkType? LeafLinkType);
+
+    internal static class WordOrQuotationExtensions
+    {
+        public static Word LocateWord(
+            this Word @this,
+            string elementContent,
+            Func<string, Exception> reportError) 
+        =>
+            Left<Word, Quotation>(@this)
+                .IterateDepthFirst()
+                .Where(woq => woq.IsLeft)
+                .Select(woq => woq.Left!)
+                .TrySingleOrDefault(
+                    word => elementContent.Equals(word.Content, StringComparison.OrdinalIgnoreCase),
+                    first2MatchingWordsOrQuotes =>
+                        first2MatchingWordsOrQuotes.Count switch
+                        {
+                            0 => reportError($"Could not find word '{elementContent}'"),
+                            _ => reportError($"There are several words '{elementContent}'")
+                        });
+
+        public static IEnumerable<WordOrQuotation> IterateDepthFirst(this WordOrQuotation @this) 
+        =>
+            new[] { @this }.Concat(
+                @this.Fold(
+                    word => word.Children.SelectMany(IterateDepthFirst),
+                    _ => Enumerable.Empty<WordOrQuotation>()));
+    }
     
     internal static class RussianGrammarTreatingQuotedSequencesAsSingleSentenceElement
     {
@@ -25,6 +53,16 @@ namespace Ginger.Runner
             var textWithSubstitutedQuotes = ApplySubstitutions(quotationSubstitutions, text);
             var parsedText = @this.Parse(textWithSubstitutedQuotes);
             return RestoreQuotations(quotationSubstitutions, parsedText);
+        }
+
+        public static IReadOnlyCollection<WordOrQuotation> ParsePreservingQuotes(
+            this IRussianGrammarParser @this, 
+            DisambiguatedPattern disambiguatedPattern)
+        {
+            var parsedText = @this.ParsePreservingQuotes(disambiguatedPattern.PlainText);
+            return disambiguatedPattern.IsTrivial
+                ? parsedText
+                : parsedText.Select(disambiguatedPattern.ApplyTo).AsImmutable();
         }
 
         private static IEnumerable<string> LocateQuotedSequences(string text) =>
