@@ -10,8 +10,10 @@ using Ginger.Runner.Solarix;
 namespace Ginger.Runner
 {
     using WordOrQuotation = Either<Word, Quotation>;
+    using SentenceMeaning = Either<IReadOnlyCollection<Rule>, IReadOnlyCollection<ComplexTerm>>;
 
     using static DomainApi;
+    using static Either;
     using static MayBe;
     using static Prolog.Engine.Parsing.PrologParser;
     using static Impl;
@@ -21,11 +23,13 @@ namespace Ginger.Runner
         public static Func<WordOrQuotation, MayBe<UnderstoodSentence>> BuildPattern(
             string patternId, 
             AnnotatedSentence pattern,
-            IReadOnlyCollection<Rule> meaning,
+            SentenceMeaning meaning,
             IRussianLexicon russianLexicon)
         {
             var allWordsUsedInMeaning = new HashSet<string>(
-                meaning.SelectMany(ListUsedWords), 
+                meaning.Fold(
+                    rules => rules.SelectMany(ListUsedWords), 
+                    statements => statements.SelectMany(ListUsedWords)),
                 RussianIgnoreCase);
             var (sentenceStructureChecker, pathesToWords) = BuildSentenceStructureChecker(
                 pattern,
@@ -33,13 +37,29 @@ namespace Ginger.Runner
                 ImmutableStack.Create<int>(),
                 new Dictionary<string, PathToWordBase>(RussianIgnoreCase),
                 russianLexicon);
-            var ruleBuilders = meaning.Select(rule => MakeRuleBuilder(pattern.Sentence, rule, pathesToWords)).AsImmutable();
-            PatternEstablished?.Invoke(patternId, pattern, meaning);
-            return sentence => sentenceStructureChecker(new CheckableSentenceElement(sentence, sentence)) switch
+            
+            return meaning.Fold(
+                rules => 
                 {
-                    true => Some(new UnderstoodSentence(patternId, ruleBuilders.Select(rb => rb(sentence)).AsImmutable())),
-                    _ => None
-                };
+                    var ruleBuilders = rules.Select(rule => MakeRuleBuilder(pattern.Sentence, rule, pathesToWords)).AsImmutable();
+                    return BuildPatternCore(sentence => Left(ruleBuilders.Select(rb => rb(sentence)).AsImmutable()));
+                },
+                statements =>
+                {
+                    var statementBuilders = statements.Select(statement => MakeComplexTermBuilder(pattern.Sentence, statement, pathesToWords)).AsImmutable();
+                    return BuildPatternCore(sentence => Right(statementBuilders.Select(sb => sb(sentence)).AsImmutable()));
+                });
+
+            Func<WordOrQuotation, MayBe<UnderstoodSentence>> BuildPatternCore(
+                Func<WordOrQuotation, SentenceMeaning> buildMeaning) 
+            {
+                PatternEstablished?.Invoke(patternId, pattern, meaning);
+                return sentence => sentenceStructureChecker(new CheckableSentenceElement(sentence, sentence)) switch
+                    {
+                        true => Some(new UnderstoodSentence(patternId, buildMeaning(sentence))),
+                        _ => None
+                    };
+            }
         }
 
         public static Exception PatternBuildingException(string message, bool invalidOperation = false) =>
@@ -47,7 +67,7 @@ namespace Ginger.Runner
                 ? new InvalidOperationException(message) 
                 : new NotSupportedException(message);
 
-        public static event Action<string, AnnotatedSentence, IReadOnlyCollection<Rule>>? PatternEstablished;
+        public static event Action<string, AnnotatedSentence, SentenceMeaning>? PatternEstablished;
 
         public static event Action<string, bool>? PatternRecognitionEvent;
 

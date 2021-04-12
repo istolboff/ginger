@@ -4,11 +4,13 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using Prolog.Engine;
-
+using Prolog.Engine.Miscellaneous;
 using static Prolog.Engine.DomainApi;
 
 namespace Prolog.Tests
 {
+    using SentenceMeaning = Either<IReadOnlyCollection<Rule>, IReadOnlyCollection<ComplexTerm>>;
+
     internal static class VerboseReporting
     {
         public static string Dump<T>(T @this, string enumSeparator = "; ") =>
@@ -25,6 +27,7 @@ namespace Prolog.Tests
                 UnificationResult unificationResult => unificationResult.Succeeded ? "success(" +  string.Join(" & ",unificationResult.Instantiations.Select(i => $"{Dump(i.Key, enumSeparator)} = {Dump(i.Value, enumSeparator)}")) + ")" : "no unification possible",
                 IReadOnlyDictionary<Variable, Term> variableInstantiations => string.Join(", ", variableInstantiations.Select(kvp => $"[{Dump(kvp.Key)}] = {Dump(kvp.Value)}")),
                 ValueTuple<Term, Term> unification => $"({Dump(unification.Item1)}, {Dump(unification.Item2)})",
+                SentenceMeaning sentenceMeaning => sentenceMeaning.Fold(rules => Dump(rules), statements => Dump(statements)),
                 string text => text,
                 IEnumerable collection => string.Join(enumSeparator, collection.Cast<object>().Select(it => Dump(it, enumSeparator))),
                 _ => @this?.ToString() ?? "NULL"

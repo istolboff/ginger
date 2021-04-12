@@ -8,11 +8,13 @@ using System.Text.RegularExpressions;
 
 namespace Ginger.Runner
 {
-    using static DomainApi;
-
     using ConcreteUnderstander = Func<Either<Word, Quotation>, MayBe<UnderstoodSentence>>;
+    using SentenceMeaning = Either<IReadOnlyCollection<Rule>, IReadOnlyCollection<ComplexTerm>>;
 
-    internal sealed record GenerativePattern(string PatternId, string PatternText, IReadOnlyCollection<Rule> Meaning)
+    using static DomainApi;
+    using static Either;
+
+    internal sealed record GenerativePattern(string PatternId, string PatternText, SentenceMeaning Meaning)
     {
         public IReadOnlyCollection<ConcreteUnderstander> GenerateConcreteUnderstanders(
             IRussianGrammarParser grammarParser,
@@ -38,7 +40,7 @@ namespace Ginger.Runner
         {
             public static IEnumerable<PatternWithMeaning> Generate(
                 string patternText,
-                IReadOnlyCollection<Rule> meaning,
+                SentenceMeaning meaning,
                 IRussianGrammarParser grammarParser,
                 IRussianLexicon russianLexicon) 
             {
@@ -141,12 +143,21 @@ namespace Ginger.Runner
                                     new[] { replicatableWord.BuildPatternModifier(elementsNumber, russianLexicon) }
                                         .Concat(pluralitySensitiveElements.Select(it => it.BuildPatternModifier(russianLexicon))));
 
-                            var concretePatternMeaning = Enumerable
-                                .Range(1, elementsNumber)
-                                .SelectMany(i => i == 1 
-                                            ? meaning 
-                                            : replicatableWord.AdjustMeaning(meaning, i))
-                                .AsImmutable();
+                            var concretePatternMeaning = meaning.Fold<SentenceMeaning>(
+                                rules => Left(
+                                    Enumerable
+                                        .Range(1, elementsNumber)
+                                        .SelectMany(i => i == 1 
+                                                    ? rules 
+                                                    : replicatableWord.AdjustMeaning(rules, i))
+                                        .AsImmutable()),
+                                statements => Right(
+                                    Enumerable
+                                        .Range(1, elementsNumber)
+                                        .SelectMany(i => i == 1 
+                                                    ? statements
+                                                    : replicatableWord.AdjustMeaning(statements, i))
+                                        .AsImmutable()));
 
                             return new PatternWithMeaning(concretePatternText, concretePatternMeaning);
                         });
@@ -163,7 +174,7 @@ namespace Ginger.Runner
                     };
 
                 Word FindWordInParsedPattern(
-                    string patternText,
+                    string phrase,
                     Word sentenceElement, 
                     string word, 
                     GenerationHint hintType) 
@@ -172,11 +183,11 @@ namespace Ginger.Runner
                         .LocateWord(
                             word,
                             errorText => Failure(
-                                $" {errorText}. The {HintToString(hintType)} '{word}' should appear in the pattern '{patternText}' exactly once."));
+                                $" {errorText}. The {HintToString(hintType)} '{word}' should appear in the pattern '{phrase}' exactly once."));
 
                 LemmaVersion GetSingleLemmaVersion(
                     Word wordElement,
-                    string patternText,
+                    string phrase,
                     GenerationHint hintType,
                     bool ignoreGender = false) 
                 =>
@@ -186,7 +197,7 @@ namespace Ginger.Runner
                             .Where(lv => (lv.Characteristics.TryGetGender() ?? Gender.Мужской) == Gender.Мужской))
                         .TrySingleOrDefault(_ => 
                             Failure(
-                                $"{HintToString(hintType)} '{wordElement.Content}' should have a single lemma version in the phrase '{patternText}'. " + 
+                                $"{HintToString(hintType)} '{wordElement.Content}' should have a single lemma version in the phrase '{phrase}'. " + 
                                 "Please reformulate the pattern's text."));
 
                 string HintToString(GenerationHint hintType) =>
@@ -221,7 +232,7 @@ namespace Ginger.Runner
         {
             public static IEnumerable<PatternWithMeaning> Generate(
                 string patternText,
-                IReadOnlyCollection<Rule> meaning,
+                SentenceMeaning meaning,
                 IRussianLexicon russianLexicon)
             {
                 var matchCollection = FixedWordAlternativesRegex.Matches(patternText);
@@ -257,38 +268,73 @@ namespace Ginger.Runner
                             Pattern: patternText
                                 .Remove(alternativeInfo.Location.Start, alternativeInfo.Location.Length)
                                 .Insert(alternativeInfo.Location.Start, word),
-                            Meaning: ReplaceWordInMeaning(meaning, "∥", russianLexicon.GetNeutralForm(word))));
+                            Meaning: ReplaceWordInMeaning(
+                                        meaning, 
+                                        wordToBeReplaced: "∥", 
+                                        wordToReplaceWith: russianLexicon.GetNeutralForm(word))));
             }
 
             private static readonly Regex FixedWordAlternativesRegex = new (@"∥\(([^)]+)\)", RegexOptions.Compiled);
         }
 
-        internal record PatternWithMeaning(string Pattern, IReadOnlyCollection<Rule> Meaning);
+        internal record PatternWithMeaning(string Pattern, SentenceMeaning Meaning);
 
         private static InvalidOperationException Failure(string message) => new (message);
+
+        private static SentenceMeaning ReplaceWordInMeaning(
+            SentenceMeaning meaning, 
+            string wordToBeReplaced,
+            string wordToReplaceWith)
+        => 
+            meaning.Fold<SentenceMeaning>(
+                rules => Left(ReplaceWordInMeaning(
+                                rules, 
+                                wordToBeReplaced: wordToBeReplaced, 
+                                wordToReplaceWith: wordToReplaceWith)),
+                statements => Right(ReplaceWordInMeaning(
+                                statements, 
+                                wordToBeReplaced: wordToBeReplaced, 
+                                wordToReplaceWith: wordToReplaceWith)));
 
         private static IReadOnlyCollection<Rule> ReplaceWordInMeaning(
             IReadOnlyCollection<Rule> meaning,
             string wordToBeReplaced,
             string wordToReplaceWith)
         {
-                return meaning.Select(AdjustRule).AsImmutable();
+            return meaning.Select(AdjustRule).AsImmutable();
 
-                Rule AdjustRule(Rule rule) =>
-                    Rule(AdjustComplexTerm(rule.Conclusion), rule.Premises.Select(AdjustComplexTerm));
+            Rule AdjustRule(Rule rule) =>
+                Rule(
+                    ReplaceWordInMeaning(
+                        new[] { rule.Conclusion }, 
+                        wordToBeReplaced: wordToBeReplaced, 
+                        wordToReplaceWith: wordToReplaceWith)
+                    .Single(), 
+                    ReplaceWordInMeaning(
+                        rule.Premises, 
+                        wordToBeReplaced: wordToBeReplaced, 
+                        wordToReplaceWith: wordToReplaceWith));
+        }
 
-                ComplexTerm AdjustComplexTerm(ComplexTerm complexTerm) =>
-                    complexTerm with { Arguments = new (complexTerm.Arguments.Select(AdjustTerm)) };
+        private static IReadOnlyCollection<ComplexTerm> ReplaceWordInMeaning(
+            IReadOnlyCollection<ComplexTerm> meaning,
+            string wordToBeReplaced,
+            string wordToReplaceWith)
+        {
+            return meaning.Select(AdjustComplexTerm).AsImmutable();
 
-                Term AdjustTerm(Term term) =>
-                    term switch
-                    {
-                        Atom atom when atom.Characters.Equals(
-                            wordToBeReplaced,
-                            StringComparison.OrdinalIgnoreCase) => Atom(wordToReplaceWith),
-                        ComplexTerm ct => AdjustComplexTerm(ct),
-                        _ => term
-                    };
+            ComplexTerm AdjustComplexTerm(ComplexTerm complexTerm) =>
+                complexTerm with { Arguments = new (complexTerm.Arguments.Select(AdjustTerm)) };
+
+            Term AdjustTerm(Term term) =>
+                term switch
+                {
+                    Atom atom when atom.Characters.Equals(
+                        wordToBeReplaced,
+                        StringComparison.OrdinalIgnoreCase) => Atom(wordToReplaceWith),
+                    ComplexTerm ct => AdjustComplexTerm(ct),
+                    _ => term
+                };
         }
 
         private record ReplicatableWord(GenerationElementLocation GenerationElement, LemmaVersion WordLemma)
@@ -306,7 +352,19 @@ namespace Ginger.Runner
                     });
 
             public IReadOnlyCollection<Rule> AdjustMeaning(IReadOnlyCollection<Rule> singleElementMeaning, int nthReplication) =>
-                ReplaceWordInMeaning(singleElementMeaning, WordLemma.Lemma, GetElement(nthReplication));
+                ReplaceWordInMeaning(
+                    singleElementMeaning, 
+                    wordToBeReplaced: WordLemma.Lemma, 
+                    wordToReplaceWith: GetElement(nthReplication));
+
+            public IReadOnlyCollection<ComplexTerm> AdjustMeaning(
+                IReadOnlyCollection<ComplexTerm> singleElementMeaning, 
+                int nthReplication)
+            => 
+                ReplaceWordInMeaning(
+                    singleElementMeaning, 
+                    wordToBeReplaced: WordLemma.Lemma, 
+                    wordToReplaceWith: GetElement(nthReplication));
 
             private IEnumerable<string> GetElements(int n, IRussianLexicon russianLexicon) =>
                 Enumerable.Range(2, n - 1).Select(i => GetElement(i, russianLexicon));

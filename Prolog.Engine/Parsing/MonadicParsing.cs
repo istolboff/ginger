@@ -7,6 +7,7 @@ namespace Prolog.Engine.Parsing
 {
     using static Either;
     using static MayBe;
+    using static TextParsingPrimitives;
 
     internal sealed record TextInput(string Text, int Position)
     {
@@ -22,7 +23,11 @@ namespace Prolog.Engine.Parsing
 
     internal sealed record ParsingError(string Text, TextInput Location);
 
-    internal sealed record Result<TValue>(TValue Value, TextInput Rest);
+    internal sealed record Result<TValue>(TValue Value, TextInput Rest)
+    {
+        public Result<TMappedValue> Map<TMappedValue>(Func<TValue, TMappedValue> mapValue) =>
+            new (mapValue(Value), Rest);
+    }
 
     internal delegate Either<ParsingError, Result<TValue>> Parser<TValue>(TextInput input);
 
@@ -92,6 +97,16 @@ namespace Prolog.Engine.Parsing
             params Parser<TValue>[] parsers) =>
             parsers.Aggregate(Or(Or(parser1, parser2), parser3), Or);
 
+        public static Parser<Either<TValue1, TValue2>> Either<TValue1, TValue2>(
+            Parser<TValue1> parser1,
+            Parser<TValue2> parser2) 
+        => 
+            input => 
+                parser1(input)
+                    .Fold(
+                        _ => parser2(input).Map(r => r.Map(Right<TValue1, TValue2>)),
+                        value1 => Right(value1.Map(Left<TValue1, TValue2>)));
+
         public static Parser<IReadOnlyCollection<TValue>> Repeat<TValue>(
             Parser<TValue> parser,
             bool atLeastOnce = false) =>
@@ -130,6 +145,11 @@ namespace Prolog.Engine.Parsing
             input => unsued == null 
                 ? Right(Result(true, input)) 
                 : throw ProgramLogic.Error("call to ForwardDeclaration() seems to be unnecessary in this spot.");
+
+        public static Parser<TValue> WholeInput<TValue>(Parser<TValue> parser) =>
+            from result in parser
+            from unsused in SkipWhitespaces.Then(Eof)
+            select result;
 
         public static Result<TValue> Result<TValue>(TValue value, TextInput rest) =>
             new (value, rest);

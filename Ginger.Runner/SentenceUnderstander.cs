@@ -61,10 +61,14 @@ namespace Ginger.Runner
                 select string.Join(string.Empty, id),
                 "patternId");
 
+            var meaning = tracer.Trace(
+                Either(PrologParsers.ProgramParser, PrologParsers.PremisesGroupParser),
+                "meaning");
+
             var singlePattern = tracer.Trace(
                 from id in patternId
                 from generativePattern in ReadTill("::=")
-                from generativeMeaning in PrologParsers.ProgramParser
+                from generativeMeaning in meaning
                 select new GenerativePattern(id, generativePattern, generativeMeaning),
                 "singlePattern");
 

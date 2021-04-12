@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using TechTalk.SpecFlow;
@@ -6,13 +7,17 @@ using Prolog.Engine;
 using Prolog.Engine.Miscellaneous;
 using Ginger.Runner;
 using Ginger.Runner.Solarix;
+using Prolog.Engine.Parsing;
 
 namespace Ginger.Tests
 {
     using static MakeCompilerHappy;
+    using static Prolog.Engine.Parsing.MonadicParsing;
     using static Prolog.Engine.Parsing.PrologParser;
     using static Prolog.Tests.VerboseReporting;
-    
+
+    using SentenceMeaning = Either<IReadOnlyCollection<Rule>, IReadOnlyCollection<ComplexTerm>>;
+
     [Binding]
 #pragma warning disable CA1812 // Your class is an internal class that is apparently never instantiated on Derived class
     internal sealed class Patterns
@@ -30,7 +35,7 @@ namespace Ginger.Tests
         {
             SentenceUnderstander = new SentenceUnderstander(
                 from r in patterns.GetMultilineRows()
-                let generativePattern = new GenerativePattern(r["Id"], r["Pattern"], ParseProgram(r["Meaning"]))
+                let generativePattern = new GenerativePattern(r["Id"], r["Pattern"], ParseMeaning(r["Meaning"]))
                 from recognizer in generativePattern.GenerateConcreteUnderstanders(_grammarParser, _russianLexicon)
                 select recognizer);
         }
@@ -48,10 +53,10 @@ namespace Ginger.Tests
                 
             var wrongUnderstandings = (
                     from situation in situations
-                    let expectedMeaning = ParseProgram(situation.ExpectedMeaning)
+                    let expectedMeaning = ParseMeaning(situation.ExpectedMeaning)
                     let understoodSentence = SentenceUnderstander.Understand(_grammarParser.ParsePreservingQuotes(situation.Sentence).Single())
                     where !understoodSentence
-                            .Map(r => expectedMeaning.SequenceEqual(r.Meaning) && situation.RecognizedWithPattern == r.PatternId)
+                            .Map(r => MeaningsAreEqual(expectedMeaning, r.Meaning) && situation.RecognizedWithPattern == r.PatternId)
                             .OrElse(false)
                     select new 
                     { 
@@ -100,7 +105,7 @@ namespace Ginger.Tests
                     let expectedConcretePatterns = StreamlineText(singleCase["Resulting Concrete Patterns"])
                                                         .Split(';', StringSplitOptions.RemoveEmptyEntries)
                                                         .Select(s => s.Trim())
-                    let actualConcretePatterns = new GenerativePattern("unimportant", generativePatternText, Array.Empty<Rule>())
+                    let actualConcretePatterns = MakeGenerativePattern(generativePatternText)
                                                     .GenerateConcretePatterns(_grammarParser, _russianLexicon)
                                                     .Select(it => it.Pattern)
                     where !expectedConcretePatterns.SequenceEqual(actualConcretePatterns)
@@ -148,7 +153,7 @@ namespace Ginger.Tests
                 try
                 {
                     SuppressCa1806(
-                        new GenerativePattern("unimportant", pattern, Array.Empty<Rule>())
+                        MakeGenerativePattern(pattern)
                             .GenerateConcreteUnderstanders(_grammarParser, _russianLexicon));
                     return string.Empty;
                 }
@@ -164,6 +169,26 @@ namespace Ginger.Tests
             get => (SentenceUnderstander)_scenarioContext[nameof(SentenceUnderstander)];
             set => _scenarioContext[nameof(SentenceUnderstander)] = value;
         }
+
+        private static SentenceMeaning ParseMeaning(string meaning) =>
+            Either(
+                WholeInput(PrologParsers.ProgramParser), 
+                WholeInput(PrologParsers.PremisesGroupParser))
+                    (new TextInput(meaning, 0))
+            .Fold(
+                parsingError => throw new InvalidOperationException(parsingError.Text),
+                meaning => meaning.Value);
+
+        private static bool MeaningsAreEqual(SentenceMeaning expectedMeaning, SentenceMeaning actualMeaning) =>
+            expectedMeaning.Fold(
+                expectedRules => actualMeaning.Fold(expectedRules.SequenceEqual, _ => false),
+                expectedStatements => actualMeaning.Fold(_ => false, expectedStatements.SequenceEqual));
+
+        private static GenerativePattern MakeGenerativePattern(string generativePatternText) =>
+            new (
+                "unimportant", 
+                generativePatternText, 
+                new SentenceMeaning(Array.Empty<Rule>(), default, IsLeft: true));
 
         private readonly ScenarioContext _scenarioContext;
         private readonly IRussianGrammarParser _grammarParser;

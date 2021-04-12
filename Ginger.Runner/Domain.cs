@@ -4,7 +4,9 @@ using Prolog.Engine.Miscellaneous;
 
 namespace Ginger.Runner
 {
-    internal sealed record UnderstoodSentence(string PatternId, IReadOnlyCollection<Rule> Meaning);
+    using SentenceMeaning = Either<IReadOnlyCollection<Rule>, IReadOnlyCollection<ComplexTerm>>;
+
+    internal sealed record UnderstoodSentence(string PatternId, SentenceMeaning Meaning);
 
     public sealed record BusinessRule(string FinalStateName);
 

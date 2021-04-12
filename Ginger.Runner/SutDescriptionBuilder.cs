@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using Ginger.Runner.Solarix;
 using Prolog.Engine;
-using Prolog.Engine.Miscellaneous;
 
 namespace Ginger.Runner
 {
@@ -20,7 +19,11 @@ namespace Ginger.Runner
             _program.AddRange(
                 _sentenceUnderstander
                     .Understand(_grammarParser.ParsePreservingQuotes(phrasing).Single())
-                    .Map(understanding => understanding.Meaning)
+                    .Map(understanding => understanding.Meaning.Fold(
+                                rules => rules,
+                                _ => throw new InvalidOperationException(
+                                    "When defining entities, only rule-defining sentences are alowed. " +
+                                    "You're trying to use the sentence '{phrasing}' which is undesrstood as a set of statements.")))
                     .OrElse(() => throw new InvalidOperationException($"Could not understand the phrase {phrasing}")));
         }
 

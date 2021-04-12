@@ -12,6 +12,12 @@ namespace Prolog.Engine.Parsing
     using static MayBe;
     using static TextParsingPrimitives;
     using static MonadicParsing;
+
+    internal sealed record PrologConstructionsParsers(
+        Parser<IReadOnlyCollection<Rule>> ProgramParser, 
+        Parser<IReadOnlyCollection<IReadOnlyCollection<ComplexTerm>>> QueryParser,
+        Parser<IReadOnlyCollection<ComplexTerm>> PremisesGroupParser,
+        Parser<Term> TermParser);
     
     public static class PrologParser
     {
@@ -32,18 +38,13 @@ namespace Prolog.Engine.Parsing
             TryParseCore(parser, input, errorMessage)
             .Fold(error => throw error, result => result);
 
-        private static Either<Exception, T> TryParseCore<T>(Parser<T> parser, string input, string errorMessage) =>
-            (from result in parser
-             from unsused in SkipWhitespaces.Then(Eof)
-             select result)(new TextInput(input, 0))
+        internal static Either<Exception, T> TryParseCore<T>(Parser<T> parser, string input, string errorMessage) =>
+            WholeInput(parser)(new TextInput(input, 0))
              .Fold(
                 parsingError => Left<Exception, T>(ParsingError($"{errorMessage} [{input}] {parsingError.Text} at {parsingError.Location.Position}")),
                 result => Right<Exception, T>(result.Value));
 
-        private static (
-            Parser<IReadOnlyCollection<Rule>> ProgramParser, 
-            Parser<IReadOnlyCollection<IReadOnlyCollection<ComplexTerm>>> QueryParser,
-            Parser<Term> TermParser) BuildParsers()
+        private static PrologConstructionsParsers BuildParsers()
         {
             var comma = Tracer.Trace(
                         Lexem(","), 
@@ -191,16 +192,13 @@ namespace Prolog.Engine.Parsing
                 select ruleGroup.SelectMany(r => r).AsImmutable(),
                 "program");
 
-            return (program, premisesAlternatives, term);
+            return new (program, premisesAlternatives, premisesGroup, term);
 
             Parser<Term> AsTerm<T>(Parser<T> parser) where T : Term =>
                 from v in parser
                 select v as Term;
         }
 
-        internal static readonly (
-            Parser<IReadOnlyCollection<Rule>> ProgramParser, 
-            Parser<IReadOnlyCollection<IReadOnlyCollection<ComplexTerm>>> QueryParser,
-            Parser<Term> TermParser) PrologParsers = BuildParsers();
+        internal static readonly PrologConstructionsParsers PrologParsers = BuildParsers();
     }
 }
