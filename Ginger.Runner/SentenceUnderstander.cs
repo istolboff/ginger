@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -16,30 +15,99 @@ namespace Ginger.Runner
     using static PrologParser;
     using static TextParsingPrimitives;
 
-    using WordOrQuotation = Either<Word, Quotation>;
-    using ConcreteUnderstander = Func<Either<Word, Quotation>, MayBe<UnderstoodSentence>>;
+    using ConcreteUnderstander = Func<ParsedSentence, MayBe<UnderstoodSentence>>;
 
     internal sealed class SentenceUnderstander
     {
-        public SentenceUnderstander(
-            IEnumerable<ConcreteUnderstander> phraseTypeUnderstanders)
-        {
-            _phraseTypeUnderstanders = phraseTypeUnderstanders.AsImmutable();
-        }
+        private SentenceUnderstander(IReadOnlyCollection<ConcreteUnderstander> phraseTypeUnderstanders) =>
+            _phraseTypeUnderstanders = phraseTypeUnderstanders;
 
-        public MayBe<UnderstoodSentence> Understand(WordOrQuotation sentence) =>
-            _phraseTypeUnderstanders
-                .Select(phraseTypeUnderstander => phraseTypeUnderstander(sentence))
-                .TryFirst(result => result.HasValue)
-                .OrElse(None);
+        public MayBe<UnderstoodSentence> Understand(ParsedSentence sentence) =>
+            Understand(sentence, _phraseTypeUnderstanders);
 
         public static SentenceUnderstander LoadFromEmbeddedResources(
             IRussianGrammarParser grammarParser,
             IRussianLexicon russianLexicon) 
         =>
-            new (from generativePattern in ParsePatterns(ReadEmbeddedResource("Ginger.Runner.SentenceUnderstandingRules.txt"))
-                 from concreteUnderstander in generativePattern.GenerateConcreteUnderstanders(grammarParser, russianLexicon)
-                 select concreteUnderstander);
+            LoadFromPatterns(
+                ParsePatterns(ReadEmbeddedResource("Ginger.Runner.SentenceUnderstandingRules.txt")),
+                grammarParser,
+                russianLexicon);
+
+        public static SentenceUnderstander LoadFromPatterns(
+            IEnumerable<GenerativePattern> generativePatterns,
+            IRussianGrammarParser grammarParser,
+            IRussianLexicon russianLexicon) 
+        {
+            var concreteUnderstanders = new List<ConcreteUnderstander>();
+            var result = new SentenceUnderstander(concreteUnderstanders);
+
+            foreach (var generativePattern in generativePatterns)
+            {
+                var concretePatterns = generativePattern
+                                        .GenerateConcretePatterns(grammarParser, russianLexicon)
+                                        .Select(concretePattern => 
+                                            new 
+                                            { 
+                                                concretePattern,
+                                                annotatedSentence = grammarParser.ParseAnnotated(
+                                                                        DisambiguatedPattern.Create(
+                                                                            concretePattern.Pattern, 
+                                                                            russianLexicon))
+                                            })
+                                        .AsImmutable();
+                
+                var ambiguouslyUnderstoodPatterns = (
+                    from it in concretePatterns
+                    let understanding = Understand(
+                                            new(it.annotatedSentence.Text, it.annotatedSentence.Sentence),
+                                            concreteUnderstanders)
+                    where understanding.HasValue
+                    select new
+                    { 
+                        it.concretePattern.Pattern, 
+                        NewPatternId = generativePattern.PatternId, 
+                        ExistingPatternId = understanding.Value!.PatternId 
+                    }
+                ).AsImmutable();
+
+                if (ambiguouslyUnderstoodPatterns.Any())
+                {
+                    throw new InvalidOperationException(
+                        "The following understanding pattern(s) introduce ambiguity: " + Environment.NewLine +
+                        string.Join(
+                            Environment.NewLine, 
+                            ambiguouslyUnderstoodPatterns.Select(
+                                aup => $"   text '{aup.Pattern}' from pattern '{aup.NewPatternId}' " + 
+                                       $"was recognized by the pattern '{aup.ExistingPatternId}'")));
+                }
+
+                concreteUnderstanders.AddRange(concretePatterns
+                    .Select(it => PatternBuilder.BuildPattern(
+                                    generativePattern.PatternId,
+                                    it.annotatedSentence,
+                                    it.concretePattern.Meaning,
+                                    grammarParser,
+                                    russianLexicon,
+                                    result)));
+            }
+
+            return result;
+        }
+
+        private static MayBe<UnderstoodSentence> Understand(
+            ParsedSentence sentence, 
+            IEnumerable<ConcreteUnderstander> phraseTypeUnderstanders) 
+        =>
+            phraseTypeUnderstanders
+                .Select(phraseTypeUnderstander => phraseTypeUnderstander(sentence))
+                .TryFirst(result => result.HasValue)
+                .OrElse(None)
+                .Map(understoodSentence => 
+                    understoodSentence with 
+                    { 
+                        Meaning = MeaningMetaModifiers.ApplyTo(understoodSentence.Meaning) 
+                    });
 
         private static TextInput ReadEmbeddedResource(string name)
         {
@@ -52,36 +120,30 @@ namespace Ginger.Runner
 
         private static IEnumerable<GenerativePattern> ParsePatterns(TextInput rulesText)
         {
-            var tracer = new ParsingTracer(text => Log(text));
-
-            var patternId = tracer.Trace(
+            var patternId = Tracer.Trace(
                 from unused in Lexem("pattern-")
                 from id in Repeat(Expect(ch => char.IsLetterOrDigit(ch) || ch == '_' || ch == '-'))
                 from unused1 in Lexem(":").Then(Eol)
                 select string.Join(string.Empty, id),
                 "patternId");
 
-            var meaning = tracer.Trace(
+            var meaning = Tracer.Trace(
                 Either(PrologParsers.ProgramParser, PrologParsers.PremisesGroupParser),
                 "meaning");
 
-            var singlePattern = tracer.Trace(
+            var singlePattern = Tracer.Trace(
                 from id in patternId
                 from generativePattern in ReadTill("::=")
                 from generativeMeaning in meaning
                 select new GenerativePattern(id, generativePattern, generativeMeaning),
                 "singlePattern");
 
-            var patterns = tracer.Trace(Repeat(singlePattern), "patterns");
+            var patterns = Tracer.Trace(Repeat(singlePattern), "patterns");
 
             return patterns(rulesText).Fold(
                         parsingError => throw ParsingError($"{parsingError.Text} at {parsingError.Location.Position}"),
                         result => result.Value);
         }
-
-        [Conditional("UseLogging")]
-        private static void Log(string text) =>
-            Trace.WriteLine(text);
 
         private readonly IReadOnlyCollection<ConcreteUnderstander> _phraseTypeUnderstanders;
     }

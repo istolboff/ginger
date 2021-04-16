@@ -217,7 +217,7 @@ namespace Ginger.Runner.Solarix
             IEnumerable<LemmaVersion> lemmaVersions,
             Func<string, Exception> reportError) =>
             lemmaVersions
-                .TrySingleOrDefault(
+                .Single(
                     lv => CheckLemmaVersion(lv.Characteristics),
                     first2MatchingLemmaVersions =>
                         first2MatchingLemmaVersions.Count switch

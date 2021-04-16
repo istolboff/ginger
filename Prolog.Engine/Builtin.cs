@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using Prolog.Engine.Miscellaneous;
@@ -51,7 +52,27 @@ namespace Prolog.Engine
             "<", 
             (left, right) => Unification.Result(StandardOrderOfTerms.Default.Compare(left, right) <= 0));
 
-         private static readonly ComplexTermFactory Subset = StandardPredicate(
+        private static readonly ComplexTermFactory Compare = StandardPredicate(
+            "compare",
+            (order, term1, term2) => 
+                order switch 
+                {
+                    Atom expectedOrder when expectedOrder.Characters.IsOneOf("<", "=", ">") => 
+                        Unification.Result(StandardOrderOfTerms.Default.Compare1(term1, term2) == expectedOrder.Characters),
+                    Atom wrongOrder => 
+                        throw new ArgumentException(
+                            message: $"Invalid value '{wrongOrder.Characters}' for parameter order of 'compare/3'. " + 
+                                     "Only variables, or atoms '<', '=', '>' are suuported.",
+                            paramName: nameof(order)),
+                    Variable x =>
+                        Unification.Success(
+                            x, 
+                            Atom(StandardOrderOfTerms.Default.Compare1(term1, term2))),
+                    _ => throw TypeError("first parameter of 'compare/3' should be either variable or one of atoms '<', '=', '>'")
+                }
+        );
+
+        private static readonly ComplexTermFactory Subset = StandardPredicate(
             "subset",
             (subset, set) =>
                 (subset, set) switch 
@@ -175,21 +196,22 @@ namespace Prolog.Engine
         public static readonly IReadOnlyCollection<Rule> Rules = new[]
         {
             // standard comparison predicates
-            Introduce(Equal),
-            Introduce(NotEqual),
-            Introduce(GreaterThanOrEqual),
-            Introduce(LessThan),
+            Introduce(Equal, 2),
+            Introduce(NotEqual, 2),
+            Introduce(GreaterThanOrEqual, 2),
+            Introduce(LessThan, 2),
+            Introduce(Compare, 3),
 
             // findall
-            Introduce(FindAll),
+            Introduce(FindAll, 3),
 
             // list predicates
-            Introduce(Append),
-            Introduce(Flatten),
-            Introduce(Reverse),
-            Introduce(Sort),
-            Introduce(Subset),
-            Introduce(Subtract),
+            Introduce(Append, 3),
+            Introduce(Flatten, 2),
+            Introduce(Reverse, 2),
+            Introduce(Sort, 2),
+            Introduce(Subset, 2),
+            Introduce(Subtract, 3),
 
             // not()
             Rule(Not(X), Call(X), Cut, Fail),
@@ -218,9 +240,9 @@ namespace Prolog.Engine
         internal static Functor DotFunctor => 
             Functor(".", 2);
 
-        private static Rule Introduce(ComplexTermFactory factory) => 
+        private static Rule Introduce(ComplexTermFactory factory, int arity) => 
             new (
-                Conclusion: factory.Invoke().Functor.Arity switch 
+                Conclusion: arity switch 
                     {
                         2 => factory.Invoke(X, Y),
                         3 => factory.Invoke(X, Y, T),

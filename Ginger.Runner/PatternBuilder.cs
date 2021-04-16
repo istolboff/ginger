@@ -11,20 +11,24 @@ namespace Ginger.Runner
 {
     using WordOrQuotation = Either<Word, Quotation>;
     using SentenceMeaning = Either<IReadOnlyCollection<Rule>, IReadOnlyCollection<ComplexTerm>>;
+    using ConcreteUnderstander = Func<ParsedSentence, MayBe<UnderstoodSentence>>;
 
     using static DomainApi;
     using static Either;
     using static MayBe;
+    using static MeaningMetaModifiers;
     using static Prolog.Engine.Parsing.PrologParser;
     using static Impl;
 
     internal static class PatternBuilder
     {
-        public static Func<WordOrQuotation, MayBe<UnderstoodSentence>> BuildPattern(
+        public static ConcreteUnderstander BuildPattern(
             string patternId, 
             AnnotatedSentence pattern,
             SentenceMeaning meaning,
-            IRussianLexicon russianLexicon)
+            IRussianGrammarParser grammarParser,
+            IRussianLexicon russianLexicon,
+            SentenceUnderstander sentenceUnderstander)
         {
             var allWordsUsedInMeaning = new HashSet<string>(
                 meaning.Fold(
@@ -32,6 +36,7 @@ namespace Ginger.Runner
                     statements => statements.SelectMany(ListUsedWords)),
                 RussianIgnoreCase);
             var (sentenceStructureChecker, pathesToWords) = BuildSentenceStructureChecker(
+                patternId,
                 pattern,
                 allWordsUsedInMeaning,
                 ImmutableStack.Create<int>(),
@@ -41,22 +46,32 @@ namespace Ginger.Runner
             return meaning.Fold(
                 rules => 
                 {
-                    var ruleBuilders = rules.Select(rule => MakeRuleBuilder(pattern.Sentence, rule, pathesToWords)).AsImmutable();
-                    return BuildPatternCore(sentence => Left(ruleBuilders.Select(rb => rb(sentence)).AsImmutable()));
+                    var ruleBuilders = rules
+                        .ConvertAll(rule => 
+                            MakeRuleBuilder(pattern.Sentence, rule, pathesToWords, grammarParser, sentenceUnderstander));
+                    return BuildPatternCore(sentence => 
+                        Sequence(ruleBuilders.ConvertAll(rb => rb(sentence)))
+                            .Map(Left<IReadOnlyCollection<Rule>, IReadOnlyCollection<ComplexTerm>>));
                 },
                 statements =>
                 {
-                    var statementBuilders = statements.Select(statement => MakeComplexTermBuilder(pattern.Sentence, statement, pathesToWords)).AsImmutable();
-                    return BuildPatternCore(sentence => Right(statementBuilders.Select(sb => sb(sentence)).AsImmutable()));
+                    var statementBuilders = statements
+                        .ConvertAll(statement => 
+                            MakeComplexTermBuilder(pattern.Sentence, statement, pathesToWords, grammarParser, sentenceUnderstander));
+                    return BuildPatternCore(sentence => 
+                        Sequence(statementBuilders.ConvertAll(sb => sb(sentence)))
+                            .Map(Right<IReadOnlyCollection<Rule>, IReadOnlyCollection<ComplexTerm>>));
                 });
 
-            Func<WordOrQuotation, MayBe<UnderstoodSentence>> BuildPatternCore(
-                Func<WordOrQuotation, SentenceMeaning> buildMeaning) 
+            ConcreteUnderstander BuildPatternCore(
+                Func<WordOrQuotation, MayBe<SentenceMeaning>> buildMeaning) 
             {
                 PatternEstablished?.Invoke(patternId, pattern, meaning);
-                return sentence => sentenceStructureChecker(new CheckableSentenceElement(sentence, sentence)) switch
+                return sentence => 
+                    sentenceStructureChecker(new CheckableSentenceElement(sentence, sentence.SentenceSyntax)) switch
                     {
-                        true => Some(new UnderstoodSentence(patternId, buildMeaning(sentence))),
+                        true => buildMeaning(sentence.SentenceSyntax)
+                                    .Map(meaning1 => new UnderstoodSentence(sentence, patternId, meaning1)),
                         _ => None
                     };
             }
@@ -75,25 +90,47 @@ namespace Ginger.Runner
             ListUsedWords(meaning.Conclusion).Concat(meaning.Premises.SelectMany(ListUsedWords));
 
         private static IEnumerable<string> ListUsedWords(ComplexTerm complexTerm) =>
-            SplitTextAtUpperCharacters(complexTerm.Functor.Name)
+            complexTerm.Functor.Name.SplitAtUpperCharacters()
             .Concat(complexTerm.Arguments.SelectMany(t =>
                 t switch
                 {
-                    Atom atom => SplitTextAtUpperCharacters(atom.Characters),
-                    Variable variable => SplitTextAtUpperCharacters(variable.Name),
+                    Atom atom => atom.Characters.SplitAtUpperCharacters(),
+                    Variable variable => variable.Name.SplitAtUpperCharacters(),
                     ComplexTerm ct => ListUsedWords(ct),
                     _ => Enumerable.Empty<string>()
                 }));
 
         private static (Func<CheckableSentenceElement, bool> Checker, PathesToWords Pathes)
             BuildSentenceStructureChecker(
+                string patternId, 
                 AnnotatedSentence pattern,
                 IReadOnlySet<string> allWordsUsedInMeaning,
                 ImmutableStack<int> wordIndexes,
                 Dictionary<string, PathToWordBase> pathesToWords,
                 IRussianLexicon russianLexicon)
         {
-            return (pattern.Sentence.Fold(BuildWordChecker, BuildQuotationChecker), new (pathesToWords));
+            var sentenceStructureChecker = 
+                BuildSentenceStructureCheckerCore(pattern, allWordsUsedInMeaning, wordIndexes, pathesToWords, russianLexicon);
+            return (
+                    checkableElement => 
+                    {
+                        var result = sentenceStructureChecker(checkableElement);
+                        LogChecking(result, $"Applying pattern {patternId} to '{checkableElement.Root.Sentence}'----------------");
+                        return result;
+                    }, 
+                    new (pathesToWords)
+                   );
+        }
+
+        private static Func<CheckableSentenceElement, bool>
+            BuildSentenceStructureCheckerCore(
+                AnnotatedSentence pattern,
+                IReadOnlySet<string> allWordsUsedInMeaning,
+                ImmutableStack<int> wordIndexes,
+                Dictionary<string, PathToWordBase> pathesToWords,
+                IRussianLexicon russianLexicon)
+        {
+            return pattern.Sentence.Fold(BuildWordChecker, BuildQuotationChecker);
 
             Func<CheckableSentenceElement, bool> BuildWordChecker(Word currentNode)
             {
@@ -135,8 +172,8 @@ namespace Ginger.Runner
                         log: $"{childCheckers.Length} children expected") &&
                     LogChecking(
                         pathToExpectedWord == null ||
-                        currentWord.LemmaVersions.Any(lv => lv.Lemma == pathToExpectedWord.GetWordFrom(checkableElement.Root)),
-                        log: $"expecting '{pathToExpectedWord?.GetWordFrom(checkableElement.Root)}' at {checkableElement}") &&
+                        currentWord.LemmaVersions.Any(lv => lv.Lemma == pathToExpectedWord.GetWordFrom(checkableElement.Root.SentenceSyntax)),
+                        log: $"expecting '{pathToExpectedWord?.GetWordFrom(checkableElement.Root.SentenceSyntax)}' at {checkableElement}") &&
                     LogChecking(
                         targetLemmaVersion.FindRelevantLemma(currentWord.LemmaVersions).HasValue, 
                         log: "Searching for relevant lemma. " + 
@@ -177,13 +214,12 @@ namespace Ginger.Runner
                 var childCheckers = new Func<CheckableSentenceElement, bool>[children.Count];
                 for (var i = 0; i != children.Count; ++i)
                 {
-                    childCheckers[i] = BuildSentenceStructureChecker(
+                    childCheckers[i] = BuildSentenceStructureCheckerCore(
                                             pattern with { Sentence = children[i] }, 
                                             allWordsUsedInMeaning, 
                                             wordIndexes.Push(i), 
                                             pathesToWords,
-                                            russianLexicon)
-                                        .Checker;
+                                            russianLexicon);
                 }
 
                 return childCheckers;
@@ -196,91 +232,112 @@ namespace Ginger.Runner
                         .ProposeDisambiguations(russianLexicon));
         }
 
-        private static Func<WordOrQuotation, Rule> MakeRuleBuilder(
+        private static Func<WordOrQuotation, MayBe<Rule>> MakeRuleBuilder(
             WordOrQuotation pattern,
             Rule rule,
-            PathesToWords words)
+            PathesToWords words,
+            IRussianGrammarParser grammarParser,
+            SentenceUnderstander sentenceUnderstander)
         {
-            var conclusionBuilder = MakeComplexTermBuilder(pattern, rule.Conclusion, words);
-            var premiseBuilders = rule.Premises.Select(premise => MakeComplexTermBuilder(pattern, premise, words)).AsImmutable();
-            return sentence => Rule(conclusionBuilder(sentence), premiseBuilders.Select(pb => pb(sentence)));
+            var conclusionBuilder = MakeComplexTermBuilder(pattern, rule.Conclusion, words, grammarParser, sentenceUnderstander);
+            var premiseBuilders = rule.Premises.ConvertAll(premise => MakeComplexTermBuilder(pattern, premise, words, grammarParser, sentenceUnderstander));
+            return sentence => 
+                    from conclusion in conclusionBuilder(sentence)
+                    from premises in MayBe.Sequence(premiseBuilders.ConvertAll(pb => pb(sentence)))
+                    select Rule(conclusion, premises);
         }
 
-        private static Func<WordOrQuotation, ComplexTerm> MakeComplexTermBuilder(
+        private static Func<WordOrQuotation, MayBe<ComplexTerm>> MakeComplexTermBuilder(
             WordOrQuotation pattern, 
             ComplexTerm complexTerm,
-            PathesToWords words)
+            PathesToWords words,
+            IRussianGrammarParser grammarParser,
+            SentenceUnderstander sentenceUnderstander)
         {
-            var functorBuilder = MakeFunctorBuilder(complexTerm.Functor, words);
-            var argumentBuilders = complexTerm.Arguments.Select(arg => MakeTermBuilder(pattern, arg, words)).AsImmutable();
-            return sentence => ComplexTerm(functorBuilder(sentence), argumentBuilders.Select(ab => ab(sentence)));
+            switch (complexTerm.Functor.Name)
+            {
+                case MeaningMetaModifiers.Understand:
+                {
+                    var singleArgument = complexTerm.Arguments.Single(
+                        _ => true, 
+                        _ => MetaModifierError(
+                                $"Meta-modifier '{complexTerm.Functor.Name}' requires exactly one argument."));
+
+                    var quoteTextInPatern = 
+                        ((singleArgument as Atom) 
+                            ?? throw MetaModifierError($"The only argument of {complexTerm.Functor.Name} should be an atom."))
+                            .Characters;
+
+                    return MakeUnderstander(
+                                grammarParser, 
+                                sentenceUnderstander, 
+                                words.LocateWord(quoteTextInPatern));
+                }
+
+                default:
+                {
+                    var functorBuilder = MakeFunctorBuilder(complexTerm.Functor, words);
+                    var argumentBuilders = complexTerm.Arguments.ConvertAll(
+                                        arg => MakeTermBuilder(pattern, arg, words, grammarParser, sentenceUnderstander));
+                    return sentence =>
+                                MayBe
+                                    .Sequence(argumentBuilders.ConvertAll(ab => ab(sentence)))
+                                    .Map(arguments => AccomodateInlinedArguments(functorBuilder(sentence), arguments));
+                }
+            }
         }
 
         private static Func<WordOrQuotation, FunctorBase> MakeFunctorBuilder(
             FunctorBase functor,
             PathesToWords words)
         {
-            if (BuiltinPrologFunctors.Contains(functor.Name))
+            if (BuiltinPrologFunctors.Contains(functor.Name) || IsMetaModifier(functor))
             {
                 return _ => functor;
             }
-            else if (functor is Functor f)
+            
+            if (functor is Functor f)
             {
                 var functorNameGetter = words.LocateWord(f.Name);
                 return sentence => Functor(functorNameGetter(sentence), functor.Arity);
             }
 
-            throw PatternBuildingException($"Cannot handle functor '{functor.Name}' of type {functor.GetType().Name} in meanining pattern.");
+            throw PatternBuildingException(
+                $"Cannot handle functor '{functor.Name}' of type {functor.GetType().Name} in meanining pattern.");
         }
 
-        private static Func<WordOrQuotation, Term> MakeTermBuilder(
+        private static Func<WordOrQuotation, MayBe<Term>> MakeTermBuilder(
             WordOrQuotation pattern, 
             Term term,
-            PathesToWords words)
+            PathesToWords words,
+            IRussianGrammarParser grammarParser,
+            SentenceUnderstander sentenceUnderstander)
         {
             if (term is Atom atom)
             {
                 var atomNameGetter = words.LocateWord(atom.Characters);
-                return sentence => Atom(atomNameGetter(sentence));
+                return sentence => Some<Term>(Atom(atomNameGetter(sentence)));
             }
 
             if (term is Prolog.Engine.Number number)
             {
                 var numberValueGetter = words.LocateWord(number.Value.ToString(CultureInfo.CurrentCulture));
-                return sentence => Number(int.Parse(numberValueGetter(sentence), CultureInfo.CurrentCulture));
+                return sentence => Some<Term>(Number(int.Parse(numberValueGetter(sentence), CultureInfo.CurrentCulture)));
             }
 
             if (term is Variable variable)
             {
-                var variableNameGetter = words.LocateWord(variable.Name);
-                return sentence => Variable(variableNameGetter(sentence));
+                var variableNameGetter = words.LocateWord(variable.Name, capitalizeFirstWord: true);
+                return sentence => Some<Term>(Variable(variableNameGetter(sentence)));
             }
 
             if (term is ComplexTerm complexTerm)
             {
-                var complexTermBuilder = MakeComplexTermBuilder(pattern, complexTerm, words);
-                return sentence => complexTermBuilder(sentence);
+                var complexTermBuilder = MakeComplexTermBuilder(pattern, complexTerm, words, grammarParser, sentenceUnderstander);
+                return sentence => complexTermBuilder(sentence).Map(ct => ct as Term);
             }
 
             throw PatternBuildingException($"Term {term} is not supported.");
-        }
-
-        private static IEnumerable<string> SplitTextAtUpperCharacters(string text)
-        {
-            var currentWordStart = 0;
-            for (var i = 1; i < text.Length; ++i)
-            {
-                if (char.IsUpper(text[i]))
-                {
-                    yield return text.Substring(currentWordStart, i - currentWordStart);
-                    currentWordStart = i;
-                }
-            }
-
-            if (currentWordStart < text.Length)
-            {
-                yield return text.Substring(currentWordStart);
-            }
         }
 
         private static bool LogChecking(bool checkSucceeded = true, string? log = null)
@@ -289,7 +346,13 @@ namespace Ginger.Runner
             return checkSucceeded;
         }
 
-        private static readonly IReadOnlySet<string> BuiltinPrologFunctors = 
+        internal static T LogChecking<T>(T extraInfo, string log, bool checkSucceeded = true)
+        {
+            PatternRecognitionEvent?.Invoke(string.Format(Russian, log, extraInfo), checkSucceeded);
+            return extraInfo;
+        }
+
+        internal static readonly IReadOnlySet<string> BuiltinPrologFunctors = 
             new HashSet<string>(
                 Builtin.Functors
                     .Concat(Builtin.Rules.Select(r => r.Conclusion.Functor))
@@ -352,8 +415,8 @@ namespace Ginger.Runner
 
         private record PathesToWords(IReadOnlyDictionary<string, PathToWordBase> Pathes)
         {
-            public Func<WordOrQuotation, string> LocateWord(string text) =>
-                PatternBuilder.SplitTextAtUpperCharacters(text)
+            public Func<WordOrQuotation, string> LocateWord(string text, bool capitalizeFirstWord = false) =>
+                text.SplitAtUpperCharacters()
                     .Select(LocateSingleWord)
                     .AsImmutable()
                     .Apply(wordLocators => wordLocators.Count switch
@@ -363,10 +426,9 @@ namespace Ginger.Runner
                             _ => sentenceElement => string.Join(
                                                         string.Empty, 
                                                         wordLocators.Select((wl, i) => 
-                                                            i == 0
+                                                            i == 0 && !capitalizeFirstWord
                                                                 ? wl(sentenceElement)
-                                                                : CultureInfo.CurrentCulture.TextInfo.ToTitleCase(
-                                                                    wl(sentenceElement))))
+                                                                : Russian.TextInfo.ToTitleCase(wl(sentenceElement))))
                         });
 
             private Func<WordOrQuotation, string> LocateSingleWord(string word) =>
@@ -383,6 +445,6 @@ namespace Ginger.Runner
                 TryParseTerm(word).OrElse(() => Atom("a")) is Variable;
         }
 
-        private record CheckableSentenceElement(WordOrQuotation Root, WordOrQuotation Current);
+        private record CheckableSentenceElement(ParsedSentence Root, WordOrQuotation Current);
    }
 }

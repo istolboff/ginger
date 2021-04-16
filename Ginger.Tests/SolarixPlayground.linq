@@ -20,7 +20,8 @@ void Main()
         throw new InvalidOperationException($"Could not load Dictionary from {DefaultSolarixDictionaryXmlPath}. {DescribeError()}");
     }
 
-	Parse("если имеются свободные слоты, то их занимают женщина и летчик;");
+	Parse("фермер переправляется с берега реки X на берег реки Y");
+//	DescribeProjections("одному", "Case", "Number", "Gender", "Form").Dump();
 
 	_engineHandle.Dispose();
 }
@@ -31,6 +32,9 @@ public void Parse(string text)
     var hPack = IntPtr.Zero;
     try
     {
+		var words = GrammarEngine.sol_TokenizeFX(_engineHandle, text, GrammarEngineAPI.RUSSIAN_LANGUAGE);
+		words.Select((word, index) => new { word, index }).Dump();
+	
         hPack = GrammarEngine.sol_SyntaxAnalysis(
             _engineHandle,
             text,
@@ -80,7 +84,7 @@ private void DumpSentenceElement(IntPtr hNode, int? leafType = null)
             SuppressCa1806(GrammarEngine.sol_GetEntryName(_engineHandle, entryVersionId, lemma));
 
             var partOfSpeechIndex = GrammarEngine.sol_GetEntryClass(_engineHandle, entryVersionId);
-            var partOfSpeech = partOfSpeechIndex < 0 ? (PartOfSpeech?)null : (PartOfSpeech)partOfSpeechIndex;
+            var partOfSpeech = partOfSpeechIndex < 0 ? $"undefined ({partOfSpeechIndex})" : GrammarEngine.sol_GetClassNameFX(_engineHandle, partOfSpeechIndex);
 			var coordinates = string.Join(
 							"; ",
 							new[] { GrammarEngineAPI.CASE_ru, GrammarEngineAPI.NUMBER_ru, GrammarEngineAPI.GENDER_ru,
@@ -106,7 +110,7 @@ private void DumpSentenceElement(IntPtr hNode, int? leafType = null)
 									return string.Empty;
 					            })
 								.Where(s => !string.IsNullOrEmpty(s)));
-            return $"{content} - {lemma}, {entryVersionId}, {partOfSpeech}, {coordinates}";
+            return new { content, lemma, entryVersionId, partOfSpeech, coordinates, position = GrammarEngine.sol_GetNodePosition(hNode) };
         });
 
 	lemmaVersions.Dump();
@@ -174,6 +178,10 @@ IReadOnlyCollection<string> DescribeProjections(string word, params string[] coo
 string ListCharacteristics(IntPtr hProjs, int i, params string[] coordinateNames) =>
 	string.Join(
 		Environment.NewLine,
+		new[] { 
+			$"EntryId: {GrammarEngine.sol_GetIEntry(hProjs,i)}",
+			$"EntryName: {GrammarEngine.sol_GetEntryNameFX(_engineHandle, GrammarEngine.sol_GetIEntry(hProjs,i))}"
+		}.Concat(
 		from coordinateName in coordinateNames
 		let coordinateId = coordinateName switch
 			{
@@ -191,7 +199,7 @@ string ListCharacteristics(IntPtr hProjs, int i, params string[] coordinateNames
 				_ => throw new NotSupportedException(coordinateName)
 			}
 		let stateId = GrammarEngine.sol_GetProjCoordState(_engineHandle, hProjs, i, coordinateId)
-		select $"\"{coordinateName}\":{stateId}");
+		select $"\"{coordinateName}\":{stateId}"));
 
 private static string DescribeError()
 {

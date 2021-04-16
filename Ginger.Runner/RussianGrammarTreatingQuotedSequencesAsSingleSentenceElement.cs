@@ -7,12 +7,25 @@ using Ginger.Runner.Solarix;
 
 namespace Ginger.Runner
 {
-    using static Either;
     using WordOrQuotation = Either<Word, Quotation>;
+
+    using static Either;
+    
+    internal sealed record Word(
+        string Content, 
+        IReadOnlyCollection<LemmaVersion> LemmaVersions, 
+        IReadOnlyList<WordOrQuotation> Children, 
+        LinkType? LeafLinkType);
 
     internal sealed record Quotation(string Content, IReadOnlyList<WordOrQuotation> Children);
 
-    internal sealed record Word(string Content, IReadOnlyCollection<LemmaVersion> LemmaVersions, IReadOnlyList<WordOrQuotation> Children, LinkType? LeafLinkType);
+    internal sealed record ParsedSentence(string Sentence, WordOrQuotation SentenceSyntax)
+    {
+        public ParsedSentence ApplyDisambiguator(DisambiguatedPattern disambiguatedPattern) =>
+            disambiguatedPattern.IsTrivial
+                ? this
+                : this with { SentenceSyntax = disambiguatedPattern.ApplyTo(SentenceSyntax) };
+    }
 
     internal static class WordOrQuotationExtensions
     {
@@ -25,7 +38,7 @@ namespace Ginger.Runner
                 .IterateDepthFirst()
                 .Where(woq => woq.IsLeft)
                 .Select(woq => woq.Left!)
-                .TrySingleOrDefault(
+                .Single(
                     word => elementContent.Equals(word.Content, StringComparison.OrdinalIgnoreCase),
                     first2MatchingWordsOrQuotes =>
                         first2MatchingWordsOrQuotes.Count switch
@@ -44,7 +57,7 @@ namespace Ginger.Runner
     
     internal static class RussianGrammarTreatingQuotedSequencesAsSingleSentenceElement
     {
-        public static IReadOnlyCollection<WordOrQuotation> ParsePreservingQuotes(
+        public static ParsedSentence ParsePreservingQuotes(
             this IRussianGrammarParser @this, 
             string text)
         {
@@ -52,18 +65,20 @@ namespace Ginger.Runner
             var quotationSubstitutions = MakeSubstitutionsOfQuotedSequencesWithSingleWords(quotedSequences);
             var textWithSubstitutedQuotes = ApplySubstitutions(quotationSubstitutions, text);
             var parsedText = @this.Parse(textWithSubstitutedQuotes);
-            return RestoreQuotations(quotationSubstitutions, parsedText);
+            var textSyntax = RestoreQuotations(quotationSubstitutions, parsedText).Single(
+                                _ => true, 
+                                _ => new InvalidOperationException(
+                                        $"Text '{textWithSubstitutedQuotes}' could not be tokenized unambiguously. Please reformulate it."));
+            return new (text, textSyntax);
         }
 
-        public static IReadOnlyCollection<WordOrQuotation> ParsePreservingQuotes(
+        public static ParsedSentence ParsePreservingQuotes(
             this IRussianGrammarParser @this, 
             DisambiguatedPattern disambiguatedPattern)
-        {
-            var parsedText = @this.ParsePreservingQuotes(disambiguatedPattern.PlainText);
-            return disambiguatedPattern.IsTrivial
-                ? parsedText
-                : parsedText.Select(disambiguatedPattern.ApplyTo).AsImmutable();
-        }
+        =>
+            @this
+                .ParsePreservingQuotes(disambiguatedPattern.PlainText)
+                .ApplyDisambiguator(disambiguatedPattern);
 
         private static IEnumerable<string> LocateQuotedSequences(string text) =>
             QuotationRecognizer.Matches(text).Select(m => m.Groups[1].Value).AsImmutable();

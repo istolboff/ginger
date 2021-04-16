@@ -8,7 +8,7 @@ namespace Ginger.Tests
 {
     internal static class SpecFlowExtensions
     {
-        public static IReadOnlyCollection<IDictionary<string, string>> GetMultilineRows(
+        public static IReadOnlyCollection<IReadOnlyDictionary<string, string>> GetMultilineRows(
             this Table @this, 
             bool singleLines = false) =>
             @this.Rows.Any(IsSeparatorRow)
@@ -22,7 +22,7 @@ namespace Ginger.Tests
                                 .Select(r => r[header])
                                 .Where(v => !string.IsNullOrWhiteSpace(v)))))
                     .AsImmutable()
-                : @this.Rows.AsImmutable();
+                : @this.Rows.Select(r => r.AsReadOnlyDictionary()).AsImmutable();
 
         private static bool IsSeparatorRow(TableRow row) => 
             row.Values.All(value => value.All(ch => ch == '-'));

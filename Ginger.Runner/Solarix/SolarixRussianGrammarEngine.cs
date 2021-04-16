@@ -140,7 +140,7 @@ namespace Ginger.Runner.Solarix
 
                 if (hPack == IntPtr.Zero)
                 {
-                    throw new InvalidOperationException($"Could parse the text: {text}. {DescribeError()}");
+                    throw new InvalidOperationException($"Could parse text: {text}. {DescribeError()}");
                 }
 
                 var ngrafs = GrammarEngine.sol_CountGrafs(hPack);

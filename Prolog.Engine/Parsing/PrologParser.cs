@@ -38,7 +38,7 @@ namespace Prolog.Engine.Parsing
             TryParseCore(parser, input, errorMessage)
             .Fold(error => throw error, result => result);
 
-        internal static Either<Exception, T> TryParseCore<T>(Parser<T> parser, string input, string errorMessage) =>
+        private static Either<Exception, T> TryParseCore<T>(Parser<T> parser, string input, string errorMessage) =>
             WholeInput(parser)(new TextInput(input, 0))
              .Fold(
                 parsingError => Left<Exception, T>(ParsingError($"{errorMessage} [{input}] {parsingError.Text} at {parsingError.Location.Position}")),
@@ -64,8 +64,13 @@ namespace Prolog.Engine.Parsing
                         select Atom(string.Join(string.Empty, letters)),
                         "quotedAtom");
 
+            var specialAtom = Tracer.Trace(
+                        from a in Lexem("∥")
+                        select Atom(a),
+                        "specialAtom");
+
             var atom = Tracer.Trace(
-                        Or(quotedAtom, unquotedAtom), 
+                        Or(quotedAtom, unquotedAtom, specialAtom), 
                         "atom");
 
             var number = Tracer.Trace(
@@ -83,15 +88,13 @@ namespace Prolog.Engine.Parsing
                         select name == "_" ? Builtin._ : Variable(name),
                         "variable");
 
+            var functorName = Tracer.Trace(
+                        Lexem(
+                            ch => ch == '@' || (char.IsLetter(ch) && char.IsLower(ch)),
+                            ch => char.IsLetterOrDigit(ch) || ch == '_'),
+                        "functorName");
+
             Parser<Term>? term = null;
-            var complexTerm = Tracer.Trace(
-                        from functorName in SkipWhitespaces.Then(unquotedAtom)
-                        from unused1 in Lexem("(")
-// ReSharper disable once AccessToModifiedClosure
-                        from arguments in Repeat(term!, separatorParser: comma, atLeastOnce: true)
-                        from unused2 in Lexem(")")
-                        select ComplexTerm(Functor(functorName.Characters, arguments.Count), arguments),
-                        "complexTerm");
 
             var infixExpressionOrSingleTerm = Tracer.Trace(
                         from delayUsage in ForwardDeclaration(term)
@@ -107,6 +110,15 @@ namespace Prolog.Engine.Parsing
                             .Map(it => it.complexTermFactory(term1, it.rightPart) as Term)
                             .OrElse(() => term1),
                         "infixExpressionOrSingleTerm");
+
+            var complexTerm = Tracer.Trace(
+                        from functor in SkipWhitespaces.Then(functorName)
+                        from unused1 in Lexem("(")
+// ReSharper disable once AccessToModifiedClosure
+                        from arguments in Repeat(infixExpressionOrSingleTerm, separatorParser: comma, atLeastOnce: true)
+                        from unused2 in Lexem(")")
+                        select ComplexTerm(Functor(functor, arguments.Count), arguments),
+                        "complexTerm");
 
             var explicitList = Tracer.Trace(
                         from delayUsage in ForwardDeclaration(term)

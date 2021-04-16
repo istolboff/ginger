@@ -5,15 +5,16 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using TechTalk.SpecFlow;
 using Prolog.Engine;
 using Prolog.Engine.Miscellaneous;
+using Prolog.Engine.Parsing;
 using Ginger.Runner;
 using Ginger.Runner.Solarix;
-using Prolog.Engine.Parsing;
 
-namespace Ginger.Tests
+namespace Ginger.Tests.StepDefinitions
 {
+    using static Either;
     using static MakeCompilerHappy;
-    using static Prolog.Engine.Parsing.MonadicParsing;
-    using static Prolog.Engine.Parsing.PrologParser;
+    using static MonadicParsing;
+    using static PrologParser;
     using static Prolog.Tests.VerboseReporting;
 
     using SentenceMeaning = Either<IReadOnlyCollection<Rule>, IReadOnlyCollection<ComplexTerm>>;
@@ -27,17 +28,31 @@ namespace Ginger.Tests
             ScenarioContext scenarioContext,
             IRussianGrammarParser grammarParser,
             IRussianLexicon russianLexicon) 
-        =>
-            (_scenarioContext, _grammarParser, _russianLexicon) = (scenarioContext, grammarParser, russianLexicon);
+        {
+            _scenarioContext = scenarioContext;
+            _grammarParser = grammarParser;
+            _russianLexicon = russianLexicon;
+        }
+            
 
         [Given("the following Patterns")]
         public void DefinePatterns(Table patterns)
         {
-            SentenceUnderstander = new SentenceUnderstander(
+            SentenceUnderstander = SentenceUnderstander.LoadFromPatterns(
                 from r in patterns.GetMultilineRows()
-                let generativePattern = new GenerativePattern(r["Id"], r["Pattern"], ParseMeaning(r["Meaning"]))
-                from recognizer in generativePattern.GenerateConcreteUnderstanders(_grammarParser, _russianLexicon)
-                select recognizer);
+                select new GenerativePattern(r["Id"], r["Pattern"], ParseMeaning(r["Meaning"])),
+                _grammarParser,
+                _russianLexicon);
+        }
+
+        [When("these SUT entities are defined")]
+        public void DefineSutEntities(Table entityDefinitions)
+        {
+            SutDescriptionBuilder = new SutDescriptionBuilder(_grammarParser, SentenceUnderstander);
+            foreach (var r in entityDefinitions.GetMultilineRows())
+            {
+                SutDescriptionBuilder.DefineEntity(r["Entity Definition"]);
+            }
         }
 
         [Then("the following understandings should be possible")]
@@ -48,15 +63,16 @@ namespace Ginger.Tests
                             { 
                                 Sentence = r["Sentence"], 
                                 ExpectedMeaning = r["Meaning"],
-                                RecognizedWithPattern = r["Recognized with Pattern"]
+                                RecognizedWithPattern = r.TryFind("Recognized with Pattern")
                             });
-                
+            
             var wrongUnderstandings = (
                     from situation in situations
                     let expectedMeaning = ParseMeaning(situation.ExpectedMeaning)
-                    let understoodSentence = SentenceUnderstander.Understand(_grammarParser.ParsePreservingQuotes(situation.Sentence).Single())
+                    let understoodSentence = TryToUnderstand(situation.Sentence)
                     where !understoodSentence
-                            .Map(r => MeaningsAreEqual(expectedMeaning, r.Meaning) && situation.RecognizedWithPattern == r.PatternId)
+                            .Map(r => MeaningsAreEqual(expectedMeaning, r.Meaning) && 
+                                      situation.RecognizedWithPattern.Map(patternId => patternId == r.PatternId).OrElse(true))
                             .OrElse(false)
                     select new 
                     { 
@@ -79,14 +95,14 @@ namespace Ginger.Tests
         {
             var unexpectedUnderstandings = (
                     from sentence in sentences.GetMultilineRows().Select(r => r["Sentence"])
-                    let understanding = SentenceUnderstander.Understand(_grammarParser.ParsePreservingQuotes(sentence).Single())
+                    let understanding = TryToUnderstand(sentence)
                     where understanding.HasValue
                     let understoodSentence = understanding.Value
-                    select new 
-                    { 
-                        Sentence = sentence, 
+                    select new
+                    {
+                        Sentence = sentence,
                         understoodSentence.PatternId,
-                        Meaning = Dump(understoodSentence.Meaning) 
+                        Meaning = Dump(understoodSentence.Meaning)
                     }
                 ).AsImmutable();
 
@@ -148,13 +164,15 @@ namespace Ginger.Tests
                 "but those patterns were either successfully parsed or the parsing error was not as expected:" + Environment.NewLine +
                 string.Join(Environment.NewLine, invalidSituations));
 
-            string GetParsingError(string pattern)
+            string GetParsingError(string patternText)
             {
                 try
                 {
                     SuppressCa1806(
-                        MakeGenerativePattern(pattern)
-                            .GenerateConcreteUnderstanders(_grammarParser, _russianLexicon));
+                        SentenceUnderstander.LoadFromPatterns(
+                            new GenerativePattern[] { new ("unimportant", patternText, Left(Immutable.Empty<Rule>())) },
+                            _grammarParser,
+                            _russianLexicon));
                     return string.Empty;
                 }
                 catch (InvalidOperationException exception)
@@ -166,9 +184,18 @@ namespace Ginger.Tests
 
         private SentenceUnderstander SentenceUnderstander
         {
-            get => (SentenceUnderstander)_scenarioContext[nameof(SentenceUnderstander)];
-            set => _scenarioContext[nameof(SentenceUnderstander)] = value;
+            get => _scenarioContext.Get<SentenceUnderstander>();
+            set => _scenarioContext.Set(value);
         }
+
+        private SutDescriptionBuilder? SutDescriptionBuilder
+        {
+            get => _scenarioContext.TryGetValue<SutDescriptionBuilder>(out var v) ? v : null;
+            set => _scenarioContext.Set(value);
+        }
+
+        private MayBe<UnderstoodSentence> TryToUnderstand(string sentence) =>
+            SentenceUnderstander.Understand(_grammarParser.ParsePreservingQuotes(sentence));
 
         private static SentenceMeaning ParseMeaning(string meaning) =>
             Either(
@@ -177,7 +204,7 @@ namespace Ginger.Tests
                     (new TextInput(meaning, 0))
             .Fold(
                 parsingError => throw new InvalidOperationException(parsingError.Text),
-                meaning => meaning.Value);
+                meaning1 => meaning1.Value);
 
         private static bool MeaningsAreEqual(SentenceMeaning expectedMeaning, SentenceMeaning actualMeaning) =>
             expectedMeaning.Fold(

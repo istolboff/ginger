@@ -8,7 +8,7 @@ using Prolog.Engine.Parsing;
 using Ginger.Runner;
 using Ginger.Runner.Solarix;
 
-namespace Ginger.Tests
+namespace Ginger.Tests.StepDefinitions
 {
     using static MonadicParsing;
     using static TextParsingPrimitives;
@@ -60,8 +60,7 @@ namespace Ginger.Tests
                 from situation in situations.Rows
                 let sentence = situation["Sentence with ambiguous lemma versions"]
                 let expectedDisambiguation = situation["Proposed disambiguation"].Split(";").Select(s => s.Trim()).AsImmutable()
-                let actualDisambiguation = (from sentenceRoot in _grammarParser.ParsePreservingQuotes(sentence)
-                                            from wordOrQuotation in sentenceRoot.IterateDepthFirst()
+                let actualDisambiguation = (from wordOrQuotation in _grammarParser.ParsePreservingQuotes(sentence).SentenceSyntax.IterateDepthFirst()
                                             where wordOrQuotation.IsLeft
                                             let word = wordOrQuotation.Left!
                                             where word.LemmaVersions.Count > 1
@@ -91,7 +90,10 @@ namespace Ginger.Tests
                 let annotatedText = situation["Sentence with disambiguation annotation"]
                 let ambiguousWord = situation["Ambiguous word"]
                 let expectedLemmaVersion = ExpectedLemmaVersion.Parse(situation["Parsed Grammar Characteristics"])
-                let parsedText = _grammarParser.ParsePreservingQuotes(DisambiguatedPattern.Create(annotatedText, _russianLexicon)).Single()
+                let parsedText = _grammarParser
+                                    .ParsePreservingQuotes(
+                                        DisambiguatedPattern.Create(annotatedText, _russianLexicon)
+                                    ).SentenceSyntax
                 let parsedAmbiguousWord = parsedText.Left!
                                             .LocateWord(
                                                 ambiguousWord,

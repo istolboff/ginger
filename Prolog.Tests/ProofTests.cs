@@ -134,6 +134,42 @@ namespace Prolog.Tests
         }
 
         [TestMethod]
+        public void SortedTreeSearchTests()
+        {
+            // See William F. Clocksin, Christopher S. Mellish "Programming in Prolog"
+            // 7.1 A Sorted Tree Dictionary
+            CheckSituations(new[] 
+            {
+                (
+                    Description: "Building Sorted Tree by applying lookup() predicate",
+                    Program: @"
+                        lookup(H, w(H,  G, _, _), G1) :- !, G = G1.
+                        lookup(H, w(H1, _, Before, _), G) :- compare('<', H, H1), lookup(H, Before, G).
+                        lookup(H, w(H1, _, _, After), G) :- compare('>', H, H1), lookup(H, After, G).",
+                    Query: @"
+                        lookup(massinga, X, 858), 
+                        lookup(braemar, X, 385), 
+                        lookup(adela, X, 588),
+                        lookup(panorama, X, 158),
+                        lookup(nettleweed, X, 579)",
+                    ExpectedSolutions: new[]
+                    {
+                        new V
+                        {
+                            ["X"] = @"w(massinga, 858, 
+                                            w(braemar, 385, 
+                                                w(adela, 588, _, _), 
+                                                _), 
+                                            w(panorama, 158, 
+                                                w(nettleweed, 579, _, _), 
+                                                _))" 
+                        }
+                    }
+                )
+            });
+        }
+
+        [TestMethod]
         public void SolvingVolfGoatCabbageRiddleUsingDepthFirstApproach()
         {
             CheckSituations(new[] 

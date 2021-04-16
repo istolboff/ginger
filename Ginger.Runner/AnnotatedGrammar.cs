@@ -25,7 +25,7 @@ namespace Ginger.Runner
     {
         public static AnnotatedSentence ParseAnnotated(this IRussianGrammarParser @this, DisambiguatedPattern disambiguatedPattern)
         {
-            var sentence = @this.ParsePreservingQuotes(RemoveAnnotations(disambiguatedPattern)).Single();
+            var sentence = @this.ParsePreservingQuotes(RemoveAnnotations(disambiguatedPattern)).SentenceSyntax;
             var annotatedWords = GetAnnotatedWords(disambiguatedPattern.PlainText);
             var andAllTheirLemmas = GetAllWordLemmas(sentence, annotatedWords).AsImmutable();
             return new (disambiguatedPattern.PlainText, sentence, annotatedWords, andAllTheirLemmas.ToHashSet());

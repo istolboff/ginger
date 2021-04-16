@@ -5,7 +5,11 @@ using Prolog.Engine.Miscellaneous;
 namespace Prolog.Engine
 {
 #pragma warning disable SA1313 // ParameterNamesMustBeginWithLowerCaseLetter
-    public abstract record Term;
+    public abstract record Term
+    {
+        internal Term(Action? programLogicCheck = null) =>
+            programLogicCheck?.Invoke();
+    }
 
     public sealed record Atom(string Characters) : Term;
 
@@ -23,7 +27,15 @@ namespace Prolog.Engine
     internal sealed record MetaFunctor(string Name, int Arity, Func<IReadOnlyDictionary<(string FunctorName, int FunctorArity), IReadOnlyCollection<Rule>>, IReadOnlyList<Term>, UnificationResult> Invoke) : FunctorBase(Name, Arity);
 #pragma warning restore CA1801
 
-    public sealed record ComplexTerm(FunctorBase Functor, StructuralEquatableArray<Term> Arguments) : Term;
+    public sealed record ComplexTerm(FunctorBase Functor, StructuralEquatableArray<Term> Arguments) 
+        : Term(() => 
+            {
+                if (Functor.Arity != Arguments.Count) 
+                {
+                    throw new InvalidOperationException(
+                        $"Inconsistent number of arguments ({Arguments.Count}) for '{Functor.Name}/{Functor.Arity}'");
+                }
+            });
 
     public sealed record Rule(ComplexTerm Conclusion, StructuralEquatableArray<ComplexTerm> Premises);
 

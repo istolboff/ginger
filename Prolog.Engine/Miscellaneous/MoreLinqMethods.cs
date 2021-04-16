@@ -1,15 +1,33 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 
 namespace Prolog.Engine.Miscellaneous
 {
     using static MayBe;
-    
+
     internal static class MoreLinqMethods
     {
         public static IReadOnlyCollection<T> AsImmutable<T>(this IEnumerable<T> @this) =>
             @this as IReadOnlyCollection<T> ?? @this.ToArray();
+
+        public static IReadOnlyDictionary<TKey, TValue> AsReadOnlyDictionary<TKey, TValue>(
+            this IDictionary<TKey, TValue> @this)
+            where TKey : notnull
+        =>
+            @this as IReadOnlyDictionary<TKey, TValue> ?? new Dictionary<TKey, TValue>(@this);
+
+        public static IReadOnlyCollection<TResult> ConvertAll<T, TResult>(
+            this IEnumerable<T> @this, 
+            Converter<T, TResult> converter) 
+        =>
+            @this is T[] array 
+                ? Array.ConvertAll(array, converter) 
+                : @this.Select(it => converter(it)).AsImmutable();
+
+        public static MayBe<TValue> TryFind<TKey, TValue>(this IReadOnlyDictionary<TKey, TValue> @this, TKey key) =>
+            @this.TryGetValue(key, out var result) ? Some(result) : None;
 
         public static MayBe<T> TryFirst<T>(this IEnumerable<T> @this, Func<T, bool> predicate)
         {
@@ -27,7 +45,7 @@ namespace Prolog.Engine.Miscellaneous
         public static MayBe<T> TryFirst<T>(this IEnumerable<T> @this) =>
             @this.TryFirst(_ => true);
 
-        public static T TrySingleOrDefault<T>(
+        public static T Single<T>(
             this IEnumerable<T> @this,
             Func<T, bool> predicate,
             Func<IReadOnlyCollection<T>, Exception> reportError) =>
@@ -41,11 +59,6 @@ namespace Prolog.Engine.Miscellaneous
                         1 => matchingElements.Single(),
                         _ => throw reportError(matchingElements)
                     });
-
-        public static T TrySingleOrDefault<T>(
-            this IEnumerable<T> @this,
-            Func<IReadOnlyCollection<T>, Exception> reportError) =>
-            @this.TrySingleOrDefault(_ => true, reportError);
 
         public static TAccumulate AggregateWhile<TSource, TAccumulate>(
             this IEnumerable<TSource> source,
@@ -166,5 +179,21 @@ namespace Prolog.Engine.Miscellaneous
 
             return -1;
         }
+
+        public static IEnumerable<T> Cast<T>(
+            this IEnumerable @this, 
+            Func<object, Exception> makeInvalidTypeException)
+        {
+            foreach (var it in @this)
+            {
+                yield return it is T result ? result : throw makeInvalidTypeException(it);
+            }
+        }
+    }
+    
+    internal static class Immutable
+    {
+        public static IReadOnlyCollection<T> Empty<T>() => 
+            Array.Empty<T>();
     }
 }

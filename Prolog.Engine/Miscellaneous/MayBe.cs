@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using JetBrains.Annotations;
 
 namespace Prolog.Engine.Miscellaneous
@@ -12,6 +14,21 @@ namespace Prolog.Engine.Miscellaneous
 
         public static syntacticshugar_NoneProducer None => 
             new ();
+
+		public static MayBe<TValue2> SelectMany<TValue, TIntermediate, TValue2>(
+            this MayBe<TValue> @this,
+            Func<TValue, MayBe<TIntermediate>> selector,
+            Func<TValue, TIntermediate, TValue2> projector) 
+        =>
+			@this.HasValue && selector(@this.Value!) is var intermediate && intermediate.HasValue
+				? Some(projector(@this.Value!, intermediate.Value!))
+				: None;
+		
+		public static MayBe<IReadOnlyCollection<T>> Sequence<T>(IReadOnlyCollection<MayBe<T>> sequence) 
+        =>
+			sequence.Any(it => !it.HasValue)
+				? None
+				: Some(sequence.ConvertAll(it => it.Value!));
     }
 
     internal sealed record MayBe<T>(T? Value, bool HasValue)

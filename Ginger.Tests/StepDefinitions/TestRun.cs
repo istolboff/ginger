@@ -5,7 +5,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Prolog.Tests;
 using TechTalk.SpecFlow;
 
-namespace Ginger.Tests
+namespace Ginger.Tests.StepDefinitions
 {
     [Binding]
 #pragma warning disable CA1812 // Your class is an internal class that is apparently never instantiated on Derived class    

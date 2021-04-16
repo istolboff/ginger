@@ -11,7 +11,7 @@ namespace Ginger.Runner
     public static class BuisnessRuleChecker
     {
         public static IReadOnlyCollection<IGrouping<string, TestScenario>> GenerateTestScenarios(
-            SutDescription sutDescription) =>
+            SutSpecification sutDescription) =>
            (from businessRule in sutDescription.BusinessRules
             let query = ParseQuery($@"
                     начальноеСостояние(InitialState)

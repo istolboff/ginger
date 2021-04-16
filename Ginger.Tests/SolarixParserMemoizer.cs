@@ -8,7 +8,7 @@ using System.Text.RegularExpressions;
 using Newtonsoft.Json;
 using Prolog.Engine.Miscellaneous;
 using Ginger.Runner.Solarix;
-
+using Newtonsoft.Json.Converters;
 
 namespace Ginger.Tests
 {
@@ -83,20 +83,29 @@ namespace Ginger.Tests
 
         private static string Serialize(IReadOnlyCollection<SentenceElement> sentenceElements)
         {
-            return JsonConvert.SerializeObject(
-                sentenceElements, 
-                new JsonSerializerSettings { TypeNameHandling = TypeNameHandling.All });
+            return JsonConvert.SerializeObject(sentenceElements, SerializerSettings);
         }
 
         private static IReadOnlyCollection<SentenceElement> Deserialize(string serializedData)
         {
             return JsonConvert.DeserializeObject<IReadOnlyCollection<SentenceElement>>(
                 serializedData,
-                new JsonSerializerSettings { TypeNameHandling = TypeNameHandling.All })!;
+                SerializerSettings)!;
         }
 
         private readonly IRussianGrammarParser _wrappedParser;
         private readonly IDictionary<string, Lazy<IReadOnlyCollection<SentenceElement>>> _knownSentences;
+
+        private static readonly JsonSerializerSettings SerializerSettings = 
+            new JsonSerializerSettings 
+            { 
+                TypeNameHandling = TypeNameHandling.All 
+            }
+            .Apply(settings => 
+            {
+                settings.Converters.Add(new StringEnumConverter());
+                return settings;
+            });
 
         private static readonly Regex SpaceRemover = new (@"\s+", RegexOptions.Compiled);
     }

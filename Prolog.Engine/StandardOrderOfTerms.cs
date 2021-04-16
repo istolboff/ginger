@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using Prolog.Engine.Miscellaneous;
@@ -26,6 +27,14 @@ namespace Prolog.Engine
                                 .TryFirst(it => it != 0)
                                 .OrElse(0)),
                 _ => GetTypeCode(x!).CompareTo(GetTypeCode(y!))
+            };
+
+        public string Compare1(Term? x, Term? y) =>
+            Math.Sign(Compare(x, y)) switch 
+            {
+                -1 => "<",
+                0 => "=",
+                _ => ">"
             };
 
         public static StandardOrderOfTerms Default => new ();

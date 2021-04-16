@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using Ginger.Runner.Solarix;
 using Prolog.Engine;
 
@@ -16,15 +15,16 @@ namespace Ginger.Runner
 
         public void DefineEntity(string phrasing)
         {
-            _program.AddRange(
-                _sentenceUnderstander
-                    .Understand(_grammarParser.ParsePreservingQuotes(phrasing).Single())
+            var entityDefinitions = _sentenceUnderstander
+                    .Understand(_grammarParser.ParsePreservingQuotes(phrasing))
                     .Map(understanding => understanding.Meaning.Fold(
                                 rules => rules,
                                 _ => throw new InvalidOperationException(
                                     "When defining entities, only rule-defining sentences are alowed. " +
                                     "You're trying to use the sentence '{phrasing}' which is undesrstood as a set of statements.")))
-                    .OrElse(() => throw new InvalidOperationException($"Could not understand the phrase {phrasing}")));
+                    .OrElse(() => throw new InvalidOperationException($"Could not understand the phrase {phrasing}"));
+            _entityDefinitions.AddRange(entityDefinitions);
+            _program.AddRange(entityDefinitions);
         }
 
         public void DefineEffect(string phrasing)
@@ -42,7 +42,7 @@ namespace Ginger.Runner
             throw new NotImplementedException();
         }
 
-        public SutDescription BuildDescription()
+        public SutSpecification BuildDescription()
         {
             throw new NotImplementedException();
         }
@@ -54,6 +54,7 @@ namespace Ginger.Runner
 
         private readonly IRussianGrammarParser _grammarParser;
         private readonly SentenceUnderstander _sentenceUnderstander;
+        private readonly List<Rule> _entityDefinitions = new ();
         private readonly List<Rule> _program = new ();
     }
 }

@@ -10,7 +10,6 @@ namespace Ginger.Tests
 
     internal static class PatternRecognitionLogging
     {
-
         [Conditional("UseLogging")]
         public static void Setup(TestContext testContext)
         {
@@ -22,7 +21,7 @@ namespace Ginger.Tests
                     $"| {patternId} | {annotatedPattern.Text} | {Dump(meaning, " ")} |" + Environment.NewLine);
 
             PatternBuilder.PatternRecognitionEvent += (log, checkSucceeded) => 
-                File.AppendAllText(logFilePath, $"Check for {log} {(checkSucceeded ? "succeeded" : "failed")}{Environment.NewLine}");
+                File.AppendAllText(logFilePath, $"{(checkSucceeded ? "succeeded" : "failed")}\tCheck for {log}{Environment.NewLine}");
         }
     }
 }

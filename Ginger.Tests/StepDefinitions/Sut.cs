@@ -6,7 +6,7 @@ using Prolog.Engine;
 using Ginger.Runner;
 using Ginger.Runner.Solarix;
 
-namespace Ginger.Tests
+namespace Ginger.Tests.StepDefinitions
 {
     using static Prolog.Engine.Parsing.PrologParser;
     using static BuisnessRuleChecker;
@@ -26,16 +26,16 @@ namespace Ginger.Tests
             _sentenceUnderstander = sentenceUnderstander;
         }
 
-        public SutDescription SutDescription
+        public SutSpecification SutSpecification
         {
-            get => (SutDescription)_scenarioContext[nameof(SutDescription)];
-            set => _scenarioContext[nameof(SutDescription)] = value;
+            get => (SutSpecification)_scenarioContext[nameof(SutSpecification)];
+            set => _scenarioContext[nameof(SutSpecification)] = value;
         }
 
         [Given("SUT is described as follows")]
         public void SutIsDescribedAs(Table description)
         {
-            SutDescription = ParseTextDescripton(description);
+            SutSpecification = ParseTextDescripton(description);
         }
 
         [Then("the following scenarios should be generated")]
@@ -48,13 +48,13 @@ namespace Ginger.Tests
                                     .Select(route => new TestScenario(row["Expected Outcome"], new (route)))
                 group scenario by scenario.ExpectedOutcome into g
                 select g;
-            var generatedScenarios = GenerateTestScenarios(SutDescription);
+            var generatedScenarios = GenerateTestScenarios(SutSpecification);
             Assert.IsTrue(
                 es.OrderBy(s => s.Key).Select(g => g)
                     .SequenceEqual(generatedScenarios.OrderBy(s => s.Key).Select(g => g)));
         }
 
-        private SutDescription ParseTextDescripton(Table description)
+        private SutSpecification ParseTextDescripton(Table description)
         {
             using var sutDescriptionBuilder = new SutDescriptionBuilder(_grammarParser, _sentenceUnderstander);
             foreach (var row in description.GetMultilineRows())

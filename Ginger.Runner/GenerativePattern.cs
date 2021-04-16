@@ -8,33 +8,19 @@ using System.Text.RegularExpressions;
 
 namespace Ginger.Runner
 {
-    using ConcreteUnderstander = Func<Either<Word, Quotation>, MayBe<UnderstoodSentence>>;
     using SentenceMeaning = Either<IReadOnlyCollection<Rule>, IReadOnlyCollection<ComplexTerm>>;
 
     using static DomainApi;
-    using static Either;
 
     internal sealed record GenerativePattern(string PatternId, string PatternText, SentenceMeaning Meaning)
     {
-        public IReadOnlyCollection<ConcreteUnderstander> GenerateConcreteUnderstanders(
-            IRussianGrammarParser grammarParser,
-            IRussianLexicon russianLexicon) 
-        => 
-            GenerateConcretePatterns(grammarParser, russianLexicon)
-                .Select(it => PatternBuilder.BuildPattern(
-                                    PatternId, 
-                                    grammarParser.ParseAnnotated(
-                                        DisambiguatedPattern.Create(it.Pattern, russianLexicon)), 
-                                    it.Meaning,
-                                    russianLexicon))
-                .AsImmutable();
-
-        internal IEnumerable<PatternWithMeaning> GenerateConcretePatterns(
+        public IEnumerable<PatternWithMeaning> GenerateConcretePatterns(
             IRussianGrammarParser grammarParser,
             IRussianLexicon russianLexicon) 
         =>
             FixedWordAlternativesPattern.Generate(PatternText, Meaning, russianLexicon)
-                .SelectMany(it => ReplicatableWordPattern.Generate(it.Pattern, it.Meaning, grammarParser, russianLexicon));
+                .SelectMany(it => ReplicatableWordPattern.Generate(it.Pattern, it.Meaning, grammarParser, russianLexicon))
+                .Select(it => it with { Meaning = MeaningMetaModifiers.Preprocess(it.Meaning) });
 
         private static class ReplicatableWordPattern
         {
@@ -101,15 +87,6 @@ namespace Ginger.Runner
                                 GetSingleLemmaVersion(wordElement, patternWithRemovedGenerationHints, ge.generationHint))
                         ).AsImmutable();
 
-                switch (replicatableWords.Count)
-                {
-                    case 0: return PlainPattern();
-                    case 1: break;
-                    default: throw Failure(
-                        $"Only single replicatable word marked with {ReplicatableHintText} is supported. " + 
-                        $"In pattern '{patternText}' there are {replicatableWords.Count}.");
-                }
-                
                 var pluralitySensitiveElements = (
                         from ge in replicatableWordElements
                         where ge.generationHint == GenerationHint.PluralitySensitive
@@ -131,36 +108,55 @@ namespace Ginger.Runner
                                 
                         ).AsImmutable();
 
-                return Enumerable
-                        .Range(1, MaximumNumberOfElementsInEnumerations)
-                        .Select(elementsNumber => 
+                return replicatableWords.Count switch
+                {
+                    // only {мн.} elements, no {и проч.}
+                    0 => new PatternWithMeaning[]
                         {
-                            var replicatableWord = replicatableWords.Single();
-                            var concretePatternText = elementsNumber == 1 
-                                ? patternWithRemovedGenerationHints
-                                : AdjustText(
+                            new (patternWithRemovedGenerationHints, meaning),
+                            new (
+                                AdjustText(
                                     patternText,
-                                    new[] { replicatableWord.BuildPatternModifier(elementsNumber, russianLexicon) }
-                                        .Concat(pluralitySensitiveElements.Select(it => it.BuildPatternModifier(russianLexicon))));
+                                    pluralitySensitiveElements.Select(it => it.BuildPatternModifier(russianLexicon))),
+                                meaning)
+                        },
 
-                            var concretePatternMeaning = meaning.Fold<SentenceMeaning>(
-                                rules => Left(
-                                    Enumerable
-                                        .Range(1, elementsNumber)
-                                        .SelectMany(i => i == 1 
-                                                    ? rules 
-                                                    : replicatableWord.AdjustMeaning(rules, i))
-                                        .AsImmutable()),
-                                statements => Right(
-                                    Enumerable
-                                        .Range(1, elementsNumber)
-                                        .SelectMany(i => i == 1 
-                                                    ? statements
-                                                    : replicatableWord.AdjustMeaning(statements, i))
-                                        .AsImmutable()));
+                    // single {и проч.} element and {мн.} elements
+                    1 => Enumerable
+                                .Range(1, MaximumNumberOfElementsInEnumerations)
+                                .Select(elementsNumber => 
+                                {
+                                    var replicatableWord = replicatableWords.Single();
+                                    var concretePatternText = elementsNumber == 1 
+                                        ? patternWithRemovedGenerationHints
+                                        : AdjustText(
+                                            patternText,
+                                            new[] { replicatableWord.BuildPatternModifier(elementsNumber, russianLexicon) }
+                                                .Concat(pluralitySensitiveElements.Select(it => it.BuildPatternModifier(russianLexicon))));
 
-                            return new PatternWithMeaning(concretePatternText, concretePatternMeaning);
-                        });
+                                    var concretePatternMeaning = meaning.Fold2(
+                                        rules => 
+                                            Enumerable
+                                                .Range(1, elementsNumber)
+                                                .SelectMany(i => i == 1 
+                                                            ? rules 
+                                                            : replicatableWord.AdjustMeaning(rules, i))
+                                                .AsImmutable(),
+                                        statements => 
+                                            Enumerable
+                                                .Range(1, elementsNumber)
+                                                .SelectMany(i => i == 1 
+                                                            ? statements
+                                                            : replicatableWord.AdjustMeaning(statements, i))
+                                                .AsImmutable());
+
+                                    return new PatternWithMeaning(concretePatternText, concretePatternMeaning);
+                                }),
+                    _ => throw Failure(
+                        $"Only single replicatable word marked with {ReplicatableHintText} is supported. " + 
+                        $"In pattern '{patternText}' there are {replicatableWords.Count}.")
+                    };
+                
 
                 PatternWithMeaning[] PlainPattern() =>
                     new[] { new PatternWithMeaning(patternText, meaning) };
@@ -169,7 +165,7 @@ namespace Ginger.Runner
                     hintText switch
                     {
                         ReplicatableHintText => GenerationHint.Replicatable,
-                        "{мн.}" => GenerationHint.PluralitySensitive,
+                        PluralSensitivityHintText => GenerationHint.PluralitySensitive,
                         _ => throw Failure($"Unknown generation hint: '{hintText}'")
                     };
 
@@ -195,9 +191,10 @@ namespace Ginger.Runner
                         ? wordElement.LemmaVersions
                         : wordElement.LemmaVersions
                             .Where(lv => (lv.Characteristics.TryGetGender() ?? Gender.Мужской) == Gender.Мужской))
-                        .TrySingleOrDefault(_ => 
-                            Failure(
-                                $"{HintToString(hintType)} '{wordElement.Content}' should have a single lemma version in the phrase '{phrase}'. " + 
+                    .Single(
+                        _ => true,
+                        _ => Failure(
+                                $"{HintToString(hintType)} '{wordElement.Content}' should have a single lemma version in the phrase '{phrase}'. " +
                                 "Please reformulate the pattern's text."));
 
                 string HintToString(GenerationHint hintType) =>
@@ -212,7 +209,7 @@ namespace Ginger.Runner
                     (lemmaVersion.Characteristics.TryGetGender() ?? Gender.Мужской) == Gender.Мужской
                         ? lemmaVersion
                         : throw Failure(
-                            $"'{word}{ReplicatableHintText}': Слова, переходящие во множественное число при репликации, " +
+                            $"'{word}{PluralSensitivityHintText}': Слова, переходящие во множественное число при репликации, " +
                             "всегда должны иметь мужской род");
             }
 
@@ -224,6 +221,7 @@ namespace Ginger.Runner
             private static readonly Regex ReplicatableWordRegex = new (@"([а-яА-Я]+)\s*(\([^\)]+\))?\s*({[^}]+})", RegexOptions.Compiled);
 
             private const string ReplicatableHintText = "{и проч.}";
+            private const string PluralSensitivityHintText = "{мн.}";
 
             private const int MaximumNumberOfElementsInEnumerations = 4;
         }
@@ -286,15 +284,15 @@ namespace Ginger.Runner
             string wordToBeReplaced,
             string wordToReplaceWith)
         => 
-            meaning.Fold<SentenceMeaning>(
-                rules => Left(ReplaceWordInMeaning(
+            meaning.Fold2(
+                rules => ReplaceWordInMeaning(
                                 rules, 
                                 wordToBeReplaced: wordToBeReplaced, 
-                                wordToReplaceWith: wordToReplaceWith)),
-                statements => Right(ReplaceWordInMeaning(
+                                wordToReplaceWith: wordToReplaceWith),
+                statements => ReplaceWordInMeaning(
                                 statements, 
                                 wordToBeReplaced: wordToBeReplaced, 
-                                wordToReplaceWith: wordToReplaceWith)));
+                                wordToReplaceWith: wordToReplaceWith));
 
         private static IReadOnlyCollection<Rule> ReplaceWordInMeaning(
             IReadOnlyCollection<Rule> meaning,

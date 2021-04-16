@@ -286,6 +286,7 @@ namespace Ginger.Runner.Solarix
         public (int CoordinateId, int StateId)[] ToCoordIdStateIdPairArray(Func<int, int, (int CoordinateId, int StateId)?> adjustCoordIdStateIdPair) =>
             (from property in GetType().GetProperties()
             let propertyType = property.PropertyType.RemoveNullability()
+            where propertyType.IsEnum
             let coordinateId = Impl.CoordinateStateTypeToCoordinateIdMap[propertyType]
             let stateId = property.GetValue(this)
             where stateId != null
@@ -293,9 +294,6 @@ namespace Ginger.Runner.Solarix
             where adjustedValues != null
             select adjustedValues.Value
             ).ToArray();
-
-        public (int CoordinateId, int StateId)[] ToCoordIdStateIdPairArray() =>
-            ToCoordIdStateIdPairArray((coordinateId, stateId) => (coordinateId, stateId));
    }
 
 #pragma warning disable CA1801 // Review unused parameters
