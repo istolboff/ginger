@@ -34,7 +34,6 @@ namespace Ginger.Tests.StepDefinitions
             _russianLexicon = russianLexicon;
         }
             
-
         [Given("the following Patterns")]
         public void DefinePatterns(Table patterns)
         {
@@ -48,7 +47,7 @@ namespace Ginger.Tests.StepDefinitions
         [When("these SUT entities are defined")]
         public void DefineSutEntities(Table entityDefinitions)
         {
-            SutDescriptionBuilder = new SutDescriptionBuilder(_grammarParser, SentenceUnderstander);
+            SutDescriptionBuilder = new SutSpecificationBuilder(_grammarParser, SentenceUnderstander);
             foreach (var r in entityDefinitions.GetMultilineRows())
             {
                 SutDescriptionBuilder.DefineEntity(r["Entity Definition"]);
@@ -182,22 +181,7 @@ namespace Ginger.Tests.StepDefinitions
             }
         }
 
-        private SentenceUnderstander SentenceUnderstander
-        {
-            get => _scenarioContext.Get<SentenceUnderstander>();
-            set => _scenarioContext.Set(value);
-        }
-
-        private SutDescriptionBuilder? SutDescriptionBuilder
-        {
-            get => _scenarioContext.TryGetValue<SutDescriptionBuilder>(out var v) ? v : null;
-            set => _scenarioContext.Set(value);
-        }
-
-        private MayBe<UnderstoodSentence> TryToUnderstand(string sentence) =>
-            SentenceUnderstander.Understand(_grammarParser.ParsePreservingQuotes(sentence));
-
-        private static SentenceMeaning ParseMeaning(string meaning) =>
+        internal static SentenceMeaning ParseMeaning(string meaning) =>
             Either(
                 WholeInput(PrologParsers.ProgramParser), 
                 WholeInput(PrologParsers.PremisesGroupParser))
@@ -205,6 +189,21 @@ namespace Ginger.Tests.StepDefinitions
             .Fold(
                 parsingError => throw new InvalidOperationException(parsingError.Text),
                 meaning1 => meaning1.Value);
+
+        internal SentenceUnderstander SentenceUnderstander
+        {
+            get => _scenarioContext.Get<SentenceUnderstander>();
+            set => _scenarioContext.Set(value);
+        }
+
+        private SutSpecificationBuilder? SutDescriptionBuilder
+        {
+            get => _scenarioContext.TryGetValue<SutSpecificationBuilder>(out var v) ? v : null;
+            set => _scenarioContext.Set(value);
+        }
+
+        private MayBe<UnderstoodSentence> TryToUnderstand(string sentence) =>
+            SentenceUnderstander.Understand(_grammarParser.ParsePreservingQuotes(sentence));
 
         private static bool MeaningsAreEqual(SentenceMeaning expectedMeaning, SentenceMeaning actualMeaning) =>
             expectedMeaning.Fold(

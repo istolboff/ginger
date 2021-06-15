@@ -105,7 +105,7 @@ namespace Prolog.Engine.Parsing
                 parser1(input)
                     .Fold(
                         _ => parser2(input).Map(r => r.Map(Right<TValue1, TValue2>)),
-                        value1 => Right(value1.Map(Left<TValue1, TValue2>)));
+                        r => Right(r.Map(Left<TValue1, TValue2>)));
 
         public static Parser<IReadOnlyCollection<TValue>> Repeat<TValue>(
             Parser<TValue> parser,

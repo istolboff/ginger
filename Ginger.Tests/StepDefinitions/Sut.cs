@@ -1,14 +1,19 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using TechTalk.SpecFlow;
 using Prolog.Engine;
 using Ginger.Runner;
 using Ginger.Runner.Solarix;
+using Prolog.Engine.Miscellaneous;
 
 namespace Ginger.Tests.StepDefinitions
 {
+    using SentenceMeaning = Either<IReadOnlyCollection<Rule>, IReadOnlyCollection<ComplexTerm>>;
+
     using static Prolog.Engine.Parsing.PrologParser;
+    using static Prolog.Tests.VerboseReporting;
     using static BuisnessRuleChecker;
 
     [Binding]
@@ -19,11 +24,11 @@ namespace Ginger.Tests.StepDefinitions
         public Sut(
             ScenarioContext scenarioContext,
             IRussianGrammarParser grammarParser,
-            SentenceUnderstander sentenceUnderstander)
+            Patterns patterns)
         {
             _scenarioContext = scenarioContext;
             _grammarParser = grammarParser;
-            _sentenceUnderstander = sentenceUnderstander;
+            _patterns = patterns;
         }
 
         public SutSpecification SutSpecification
@@ -38,8 +43,70 @@ namespace Ginger.Tests.StepDefinitions
             SutSpecification = ParseTextDescripton(description);
         }
 
+        [Then(@"the following components of SUT description should be generated")]
+        public void ComponentsOfSUTDescriptionShouldBeGenerated(Table table)
+        {
+            var expectedComponentsGroupedByTheirTypes = table
+                    .GetMultilineRows()
+                    .GroupBy(row => row["Type"])
+                    .ToDictionary(
+                        g => g.Key,
+                        g => g.Select(row => Patterns.ParseMeaning(row["Prolog Rules"])).AsImmutable());
+            
+            var actualComponents = expectedComponentsGroupedByTheirTypes
+                    .Keys
+                    .ToDictionary(
+                        componentType => componentType,
+                        componentType => ComponentsOfType(SutSpecification, componentType));
+
+            var missingComponentsGroupedByTheirTypes = 
+                    (from it in expectedComponentsGroupedByTheirTypes
+                    let actualComponentsOfType = actualComponents.TryGetValue(it.Key, out var r) 
+                                                    ? r 
+                                                    : Immutable.Empty<Rule>()
+                    let missingComponentsOfType = it.Value
+                                                    .Except(
+                                                        actualComponentsOfType.Select(
+                                                            c => new SentenceMeaning(new[] { c }, default, IsLeft: true)))
+                                                    .AsImmutable()
+                    where missingComponentsOfType.Any()
+                    select new { Type = it.Key, MissingComponents = missingComponentsOfType }
+                    ).AsImmutable();
+
+            Assert.IsFalse(
+                missingComponentsGroupedByTheirTypes.Any(),
+                "Missing the following expected SUT definition components:" + 
+                Environment.NewLine +
+                string.Join(
+                    Environment.NewLine, 
+                    missingComponentsGroupedByTheirTypes.Select(it => 
+                        $"[{it.Type}] =>" +
+                        Environment.NewLine +
+                        string.Join(
+                            Environment.NewLine, 
+                            it.MissingComponents.Select(c => "   " + Dump(c))))) +
+                Environment.NewLine +
+                "Only following components were generated:" +
+                Environment.NewLine +
+                string.Join(
+                    Environment.NewLine,
+                    actualComponents.Select(it =>
+                        $"[{it.Key}] =>" +
+                        Environment.NewLine +
+                        string.Join(
+                            Environment.NewLine, 
+                            it.Value.Select(c => "   " + Dump(c))))));
+
+            IReadOnlyCollection<Rule> ComponentsOfType(SutSpecification sutSpecification, string type) =>
+                type switch 
+                {
+                    "Воздействие" => sutSpecification.Effects,
+                    _ => throw new InvalidOperationException($"Cannot get SUT specification components of type '{type}'")
+                };
+        }
+
         [Then("the following scenarios should be generated")]
-        public void FollowingScenariosShouldBeGenerated(Table expectedScenarios)
+        public void ScenariosShouldBeGenerated(Table expectedScenarios)
         {
             var es = 
                 from row in expectedScenarios.GetMultilineRows()
@@ -56,7 +123,7 @@ namespace Ginger.Tests.StepDefinitions
 
         private SutSpecification ParseTextDescripton(Table description)
         {
-            using var sutDescriptionBuilder = new SutDescriptionBuilder(_grammarParser, _sentenceUnderstander);
+            var sutDescriptionBuilder = new SutSpecificationBuilder(_grammarParser, _patterns.SentenceUnderstander);
             foreach (var row in description.GetMultilineRows())
             {
                 switch (row["Type"])
@@ -74,6 +141,6 @@ namespace Ginger.Tests.StepDefinitions
 
         private readonly ScenarioContext _scenarioContext;
         private readonly IRussianGrammarParser _grammarParser;
-        private readonly SentenceUnderstander _sentenceUnderstander;
+        private readonly Patterns _patterns;
     }
 }

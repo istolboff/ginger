@@ -85,11 +85,6 @@ namespace Ginger.Runner
 
         public static InvalidOperationException MetaModifierError(string message) =>  new (message);
 
-        public static SentenceMeaning ApplyTo(SentenceMeaning meaning) 
-            =>
-            meaning.MapLeft(
-                rules => rules.ConvertAll(rule => rule.GetHashCode() != 0 ? rule : throw new NotImplementedException()));
-
         private static Rule Preprocess(Rule rule) => 
             Rule(Preprocess(rule.Conclusion), rule.Premises.Select(Preprocess));
 
@@ -108,7 +103,7 @@ namespace Ginger.Runner
                                     new InvalidOperationException($"Invalid use of {ct.Functor.Name} meta-modifier in {ct}. " + 
                                     "It can only accepts atoms as its arguments."))
                                 .Select(a => Impl.Russian.TextInfo.ToTitleCase(a.Characters)))),
-                    _ => term
+                _ => term
             };
                 
         private static readonly string InlinerFunctorName = "I" + Guid.NewGuid().ToString("N");

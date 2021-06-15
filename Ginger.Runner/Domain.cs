@@ -13,7 +13,7 @@ namespace Ginger.Runner
     public sealed record SutSpecification(
         IReadOnlyCollection<Rule> Program,
         IReadOnlyCollection<BusinessRule> BusinessRules,
-        IReadOnlyCollection<object> Effects, 
+        IReadOnlyCollection<Rule> Effects, 
         object InitialState);
 
     public sealed record TestScenario(

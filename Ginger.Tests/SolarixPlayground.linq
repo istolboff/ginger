@@ -20,7 +20,7 @@ void Main()
         throw new InvalidOperationException($"Could not load Dictionary from {DefaultSolarixDictionaryXmlPath}. {DescribeError()}");
     }
 
-	Parse("фермер переправляется с берега реки X на берег реки Y");
+	Parse("старик переходит с одной стороны улицы на другую сторону улицы");
 //	DescribeProjections("одному", "Case", "Number", "Gender", "Form").Dump();
 
 	_engineHandle.Dispose();

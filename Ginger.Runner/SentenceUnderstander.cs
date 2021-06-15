@@ -101,13 +101,7 @@ namespace Ginger.Runner
         =>
             phraseTypeUnderstanders
                 .Select(phraseTypeUnderstander => phraseTypeUnderstander(sentence))
-                .TryFirst(result => result.HasValue)
-                .OrElse(None)
-                .Map(understoodSentence => 
-                    understoodSentence with 
-                    { 
-                        Meaning = MeaningMetaModifiers.ApplyTo(understoodSentence.Meaning) 
-                    });
+                .TryFirst(result => result.HasValue);
 
         private static TextInput ReadEmbeddedResource(string name)
         {
