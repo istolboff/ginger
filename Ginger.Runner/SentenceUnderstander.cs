@@ -9,7 +9,6 @@ using Ginger.Runner.Solarix;
 
 namespace Ginger.Runner
 {
-    using static MayBe;
     using static MakeCompilerHappy;
     using static MonadicParsing;
     using static PrologParser;

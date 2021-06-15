@@ -9,6 +9,9 @@ namespace Prolog.Engine.Miscellaneous
 
     internal static class MoreLinqMethods
     {
+        public static IReadOnlyCollection<T> ToImmutable<T>(this T @this) => 
+            new[] { @this };
+
         public static IReadOnlyCollection<T> AsImmutable<T>(this IEnumerable<T> @this) =>
             @this as IReadOnlyCollection<T> ?? @this.ToArray();
 

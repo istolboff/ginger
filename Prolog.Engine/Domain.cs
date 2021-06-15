@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using Prolog.Engine.Miscellaneous;
 
 namespace Prolog.Engine
@@ -37,7 +38,10 @@ namespace Prolog.Engine
                 }
             });
 
-    public sealed record Rule(ComplexTerm Conclusion, StructuralEquatableArray<ComplexTerm> Premises);
+    public sealed record Rule(ComplexTerm Conclusion, StructuralEquatableArray<ComplexTerm> Premises)
+    {
+        public bool IsFact => !Premises.Any();
+    }
 
     public sealed record UnificationResult(bool Succeeded, StructuralEquatableDictionary<Variable, Term> Instantiations);
 #pragma warning restore SA1313

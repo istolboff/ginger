@@ -193,7 +193,7 @@ namespace Ginger.Tests.StepDefinitions
         internal SentenceUnderstander SentenceUnderstander
         {
             get => _scenarioContext.Get<SentenceUnderstander>();
-            set => _scenarioContext.Set(value);
+            private set => _scenarioContext.Set(value);
         }
 
         private SutSpecificationBuilder? SutDescriptionBuilder

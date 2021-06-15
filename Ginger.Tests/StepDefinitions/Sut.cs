@@ -12,6 +12,7 @@ namespace Ginger.Tests.StepDefinitions
 {
     using SentenceMeaning = Either<IReadOnlyCollection<Rule>, IReadOnlyCollection<ComplexTerm>>;
 
+    using static Either;
     using static Prolog.Engine.Parsing.PrologParser;
     using static Prolog.Tests.VerboseReporting;
     using static BuisnessRuleChecker;
@@ -44,14 +45,16 @@ namespace Ginger.Tests.StepDefinitions
         }
 
         [Then(@"the following components of SUT description should be generated")]
-        public void ComponentsOfSUTDescriptionShouldBeGenerated(Table table)
+        public void ComponentsOfSutDescriptionShouldBeGenerated(Table table)
         {
             var expectedComponentsGroupedByTheirTypes = table
                     .GetMultilineRows()
                     .GroupBy(row => row["Type"])
                     .ToDictionary(
                         g => g.Key,
-                        g => g.Select(row => Patterns.ParseMeaning(row["Prolog Rules"])).AsImmutable());
+                        g => g
+                              .Select(row => MakeSentenceMeaningComparable(Patterns.ParseMeaning(row["Prolog Rules"])))
+                              .AsImmutable());
             
             var actualComponents = expectedComponentsGroupedByTheirTypes
                     .Keys
@@ -61,13 +64,10 @@ namespace Ginger.Tests.StepDefinitions
 
             var missingComponentsGroupedByTheirTypes = 
                     (from it in expectedComponentsGroupedByTheirTypes
-                    let actualComponentsOfType = actualComponents.TryGetValue(it.Key, out var r) 
-                                                    ? r 
-                                                    : Immutable.Empty<Rule>()
-                    let missingComponentsOfType = it.Value
-                                                    .Except(
+                    let actualComponentsOfType = actualComponents.TryFind(it.Key).OrElse(Immutable.Empty<Rule>()) 
+                    let missingComponentsOfType = it.Value.Except(
                                                         actualComponentsOfType.Select(
-                                                            c => new SentenceMeaning(new[] { c }, default, IsLeft: true)))
+                                                            c => MakeSentenceMeaningComparable(Left(c.ToImmutable()))))
                                                     .AsImmutable()
                     where missingComponentsOfType.Any()
                     select new { Type = it.Key, MissingComponents = missingComponentsOfType }
@@ -97,12 +97,17 @@ namespace Ginger.Tests.StepDefinitions
                             Environment.NewLine, 
                             it.Value.Select(c => "   " + Dump(c))))));
 
-            IReadOnlyCollection<Rule> ComponentsOfType(SutSpecification sutSpecification, string type) =>
+            static IReadOnlyCollection<Rule> ComponentsOfType(SutSpecification sutSpecification, string type) =>
                 type switch 
                 {
                     "Воздействие" => sutSpecification.Effects,
                     _ => throw new InvalidOperationException($"Cannot get SUT specification components of type '{type}'")
                 };
+
+            static SentenceMeaning MakeSentenceMeaningComparable(SentenceMeaning sentenceMeaning) =>
+                sentenceMeaning.Fold2(
+                    rules => new StructuralEquatableArray<Rule>(rules) as IReadOnlyCollection<Rule>,
+                    statements => new StructuralEquatableArray<ComplexTerm>(statements) as IReadOnlyCollection<ComplexTerm>);
         }
 
         [Then("the following scenarios should be generated")]

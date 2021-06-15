@@ -42,7 +42,14 @@ namespace Prolog.Engine.Miscellaneous
 
         public override bool Equals(object? obj) => Equals(obj as StructuralEquatableDictionary<TKey, TValue>);
 
-        public override int GetHashCode() => _dictionary.GetHashCode();
+        public override int GetHashCode() => 
+            _dictionary.Count switch
+            {
+                0 => 0,
+                1 => _dictionary.Single().GetHashCode(),
+                2 => _dictionary.First().GetHashCode() * -1521134295 + _dictionary.Skip(1).First().GetHashCode(),
+                _ => (_dictionary.First().GetHashCode() * -1521134295 + _dictionary.Skip(1).First().GetHashCode()) * -1521134295 + _dictionary.Skip(2).First().GetHashCode()
+            };
 
         public override string ToString() =>
             "{" +

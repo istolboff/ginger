@@ -19,9 +19,9 @@ namespace Prolog.Engine.Miscellaneous
 
         public T this[int index] => _values[index];
 
-        public int Count => _values.Count;
+        public int Count => _values.Length;
 
-        public IEnumerator<T> GetEnumerator() => _values.GetEnumerator();
+        public IEnumerator<T> GetEnumerator() => (_values as IEnumerable<T>).GetEnumerator();
 
         IEnumerator IEnumerable.GetEnumerator() => _values.GetEnumerator();
 
@@ -30,10 +30,17 @@ namespace Prolog.Engine.Miscellaneous
 
         public override bool Equals(object? obj) => Equals(obj as StructuralEquatableArray<T>);
 
-        public override int GetHashCode() => _values.GetHashCode();
+        public override int GetHashCode() => 
+            _values.Length switch
+            {
+                0 => 0,
+                1 => _values[0]?.GetHashCode() ?? 0,
+                2 => (_values[0]?.GetHashCode() ?? 0) * -1521134295 + (_values[1]?.GetHashCode() ?? 0),
+                _ => ((_values[0]?.GetHashCode() ?? 0) * -1521134295 + (_values[1]?.GetHashCode() ?? 0)) * -1521134295 + (_values[2]?.GetHashCode() ?? 0)
+            };
 
         public override string ToString() =>
-            "[" + string.Join(", ", _values.Take(3)) + (_values.Count > 3 ? "..." : string.Empty) + "]";
+            "[" + string.Join(", ", _values.Take(3)) + (_values.Length > 3 ? "..." : string.Empty) + "]";
 
         public static bool operator ==(StructuralEquatableArray<T>? left, StructuralEquatableArray<T>? right) =>
             ReferenceEquals(left, right) ||
@@ -42,6 +49,6 @@ namespace Prolog.Engine.Miscellaneous
         public static bool operator !=(StructuralEquatableArray<T>? left, StructuralEquatableArray<T>? right) =>
             !(left == right);
 
-        private readonly IReadOnlyList<T> _values;
+        private readonly T[] _values;
     }
 }

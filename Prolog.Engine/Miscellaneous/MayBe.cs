@@ -54,7 +54,7 @@ namespace Prolog.Engine.Miscellaneous
 
         public static implicit operator MayBe<T>(MayBe<MayBe<T>> nestedMayBe) =>
             nestedMayBe.HasValue && nestedMayBe.Value!.HasValue 
-                ? MayBe.Some(nestedMayBe.Value.Value!) 
+                ? MayBe.Some(nestedMayBe.Value!.Value!) 
                 : MayBe.None;
     }
 

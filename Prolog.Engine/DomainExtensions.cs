@@ -30,7 +30,7 @@ namespace Prolog.Engine
         }
 
         public static bool IsList(this ComplexTerm @this) => 
-            SuppressCa1062(@this) == Builtin.EmptyList || SuppressCa1062(@this).Functor.Equals(Builtin.DotFunctor);
+            @this == Builtin.EmptyList || @this.Functor.Equals(Builtin.DotFunctor);
 
         public static IEnumerable<T> CastToList<T>(this Term term) =>
             term switch
