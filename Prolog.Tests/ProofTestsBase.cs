@@ -5,10 +5,10 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Prolog.Engine;
 using Prolog.Engine.Parsing;
 
-using V = System.Collections.Generic.Dictionary<Prolog.Engine.Variable, Prolog.Engine.Term>;
-
 namespace Prolog.Tests
 {
+    using V = Dictionary<Variable, Term>;
+
     using static DomainApi;
     using static PrologParser;
     using static VerboseReporting;

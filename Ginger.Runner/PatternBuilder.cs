@@ -115,7 +115,7 @@ namespace Ginger.Runner
                     checkableElement => 
                     {
                         var result = sentenceStructureChecker(checkableElement);
-                        LogChecking(result, $"Applying pattern {patternId} to '{checkableElement.Root.Sentence}'----------------");
+                        LogChecking(result, $"Applying pattern {patternId} to '{checkableElement.Root.Sentence.Replace(Environment.NewLine, " ")}'");
                         return result;
                     }, 
                     new (pathesToWords)
